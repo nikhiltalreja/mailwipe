@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MailWipe - Free Email Cleanup Tool</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Free email cleanup tool that quickly removes old emails. No message count restrictions, works with Gmail, Outlook, Yahoo and other email providers.">
+    <meta name="keywords" content="email cleanup, delete old emails, email management, free email tool, gmail cleaner, outlook cleaner">
+    <meta name="author" content="Nikhil Talreja">
+    <meta property="og:title" content="MailWipe - Free Email Cleanup Tool">
+    <meta property="og:description" content="Free email cleanup tool with no message count restrictions. Clean your inbox now!">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MailWipe - Free Email Cleanup Tool">
+    <meta name="twitter:description" content="Free email cleanup tool with no message count restrictions. Clean your inbox now!">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Yellowtail&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --bg-card: #162447;
+            --accent: #e94560;
+            --accent-hover: #ff5773;
+            --accent-light: #ff758f;
+            --text-primary: #ffffff;
+            --text-secondary: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --danger: #ff5757;
+            --success: #4ecca3;
+            --warning: #ffb142;
+            --info: #3498db;
+            --box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            --box-shadow-hover: 0 15px 30px rgba(0, 0, 0, 0.3);
+            --radius: 12px;
+            --border: 2px solid rgba(233, 69, 96, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(233, 69, 96, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 80% 80%, rgba(15, 52, 96, 0.2) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+            position: relative;
+        }
+
+        .logo-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .free-badge {
+            position: absolute;
+            top: -10px;
+            right: -20px;
+            background: var(--accent);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+            transform: rotate(5deg);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: rotate(5deg) scale(1); }
+            50% { transform: rotate(5deg) scale(1.1); }
+            100% { transform: rotate(5deg) scale(1); }
+        }
+
+        .logo-border {
+            position: relative;
+            display: inline-block;
+            padding: 15px 40px;
+            border: 3px solid var(--accent);
+            border-radius: var(--radius);
+            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3);
+            margin-bottom: 20px;
+            background: rgba(22, 36, 71, 0.7);
+        }
+
+        .logo-border::before, .logo-border::after {
+            content: "★";
+            position: absolute;
+            font-size: 1.5rem;
+            color: var(--accent);
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .logo-border::before {
+            left: 10px;
+        }
+
+        .logo-border::after {
+            right: 10px;
+        }
+
+        .logo {
+            font-family: 'Yellowtail', cursive;
+            font-size: 4rem;
+            color: var(--text-primary);
+            margin: 0;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3),
+                         0 0 10px rgba(233, 69, 96, 0.6);
+            letter-spacing: 2px;
+        }
+
+        .tagline {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            background-color: var(--bg-card);
+            padding: 20px;
+            border-radius: var(--radius);
+            flex: 1;
+            min-width: 180px;
+            text-align: center;
+            box-shadow: var(--box-shadow);
+            transition: all 0.3s ease;
+            border: var(--border);
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--box-shadow-hover);
+            border-color: var(--accent);
+        }
+
+        .feature i {
+            font-size: 2rem;
+            color: var(--accent);
+            margin-bottom: 15px;
+            background: rgba(233, 69, 96, 0.1);
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            border-radius: 50%;
+        }
+
+        .feature h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+        }
+
+        .feature p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--box-shadow);
+            border: var(--border);
+            transition: all 0.3s ease;
+            position: relative; /* For step indicator */
+        }
+
+        .steps-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--text-muted);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .step.active {
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent-light);
+        }
+
+        .step.completed {
+            background-color: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+
+        .step-connector {
+            width: 60px;
+            height: 2px;
+            background-color: var(--bg-tertiary);
+            margin-top: 15px;
+        }
+
+        .step-connector.active {
+            background-color: var(--accent);
+        }
+
+        .step-connector.completed {
+            background-color: var(--success);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-family: 'Playfair Display', serif;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: var(--radius);
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            font-size: 1rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.2);
+        }
+
+        select[multiple] {
+            height: auto;
+            min-height: 200px;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+            font-family: 'Playfair Display', serif;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(233, 69, 96, 0.4);
+        }
+
+        button:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .info-text {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        .warning {
+            background-color: rgba(255, 177, 66, 0.2);
+            color: var(--warning);
+            margin: 25px 0;
+            padding: 15px;
+            border-radius: var(--radius);
+            font-weight: 500;
+            border-left: 4px solid var(--warning);
+        }
+
+        .folder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .folder-item {
+            background: rgba(15, 52, 96, 0.5);
+            border-radius: var(--radius);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        .folder-item:hover {
+            background: rgba(22, 36, 71, 0.8);
+            border-color: var(--accent);
+            transform: translateY(-3px);
+        }
+
+        .folder-item .folder-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .folder-item .folder-icon {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin-right: 10px;
+        }
+
+        .folder-item .folder-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            flex: 1;
+        }
+
+        .folder-item .folder-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .folder-item .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .folder-item .stat-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .folder-item .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .folder-item .checkbox-container {
+            margin-top: auto;
+            padding-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .folder-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: var(--bg-tertiary);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent), var(--accent-light));
+            width: 0;
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+
+        #results {
+            margin-top: 25px;
+            padding: 25px;
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            min-height: 100px;
+            box-shadow: var(--box-shadow);
+            border: var(--border);
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        #results.show {
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        #results h3 {
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #results h3 i {
+            color: var(--success);
+        }
+
+        #results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .result-card {
+            background: rgba(15, 52, 96, 0.5);
+            padding: 15px;
+            border-radius: var(--radius);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .result-card.show {
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-card .folder-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .result-card .folder-icon {
+            font-size: 1.2rem;
+        }
+
+        .result-card .count {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .result-card .status {
+            font-size: 0.9rem;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .result-card.error .status {
+            color: var(--danger);
+        }
+
+        .processing {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(233, 69, 96, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-box {
+            text-align: center;
+            flex: 1;
+            min-width: 120px;
+            background: rgba(15, 52, 96, 0.5);
+            padding: 15px;
+            border-radius: var(--radius);
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .stat-box.show {
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        /* Animation delays for staggered entrance */
+        .folder-item:nth-child(1) { animation-delay: 0.1s; }
+        .folder-item:nth-child(2) { animation-delay: 0.2s; }
+        .folder-item:nth-child(3) { animation-delay: 0.3s; }
+        .folder-item:nth-child(4) { animation-delay: 0.4s; }
+        .folder-item:nth-child(5) { animation-delay: 0.5s; }
+        .folder-item:nth-child(6) { animation-delay: 0.6s; }
+        .folder-item:nth-child(7) { animation-delay: 0.7s; }
+        .folder-item:nth-child(8) { animation-delay: 0.8s; }
+
+        .result-card:nth-child(1) { animation-delay: 0.1s; }
+        .result-card:nth-child(2) { animation-delay: 0.2s; }
+        .result-card:nth-child(3) { animation-delay: 0.3s; }
+        .result-card:nth-child(4) { animation-delay: 0.4s; }
+        .result-card:nth-child(5) { animation-delay: 0.5s; }
+        .result-card:nth-child(6) { animation-delay: 0.6s; }
+        .result-card:nth-child(7) { animation-delay: 0.7s; }
+        .result-card:nth-child(8) { animation-delay: 0.8s; }
+
+        .stat-box:nth-child(1) { animation-delay: 0.3s; }
+        .stat-box:nth-child(2) { animation-delay: 0.4s; }
+        .stat-box:nth-child(3) { animation-delay: 0.5s; }
+        .stat-box:nth-child(4) { animation-delay: 0.6s; }
+
+        /* Step content containers */
+        .step-content {
+            display: none;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        /* Connection status */
+        .connection-status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .connection-status.error {
+            background-color: rgba(255, 87, 87, 0.1);
+            color: var(--danger);
+            border-left: 4px solid var(--danger);
+        }
+
+        .connection-status.success {
+            background-color: rgba(78, 204, 163, 0.1);
+            color: var(--success);
+            border-left: 4px solid var(--success);
+        }
+
+        .connection-status.warning {
+            background-color: rgba(255, 177, 66, 0.1);
+            color: var(--warning);
+            border-left: 4px solid var(--warning);
+        }
+
+        .connection-status.info {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: var(--info);
+            border-left: 4px solid var(--info);
+        }
+
+        /* Popup styles */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .popup-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .popup-content {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .popup-overlay.show .popup-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .popup-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 5px;
+            width: auto;
+            box-shadow: none;
+        }
+
+        .popup-close:hover {
+            color: var(--accent);
+            background: none;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .popup-title {
+            margin-bottom: 20px;
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+        }
+
+        .popup-text {
+            margin-bottom: 25px;
+            color: var(--text-secondary);
+        }
+
+        .popup-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .popup-buttons button {
+            flex: 1;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--text-muted);
+            box-shadow: none;
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 40px;
+        }
+        
+        .footer-logo {
+            font-family: 'Yellowtail', cursive;
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .features {
+                flex-direction: column;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .logo {
+                font-size: 3rem;
+            }
+            
+            #results-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .folder-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .step-connector {
+                width: 30px;
+            }
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <div class="free-badge">
+                    <i class="fas fa-tag"></i> FREE
+                </div>
+                <div class="logo-border">
+                    <h1 class="logo">MailWipe</h1>
+                </div>
+            </div>
+            <p class="tagline">Email cleaner that deletes in seconds, not hours</p>
+        </header>
+
+        <div class="features">
+            <div class="feature">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Secure</h3>
+                <p>We never store your passwords or scan the content of your emails</p>
+            </div>
+            <div class="feature">
+                <i class="fas fa-bolt"></i>
+                <h3>Lightning Fast</h3>
+                <p>Handles 50,000+ emails with ease and speed</p>
+            </div>
+            <div class="feature">
+                <i class="fas fa-infinity"></i>
+                <h3>No Limits</h3>
+                <p>Zero restrictions on the number of messages you can clean</p>
+            </div>
+            <div class="feature">
+                <i class="fas fa-trash"></i>
+                <h3>Efficient</h3>
+                <p>Bulk delete old emails with just a few clicks</p>
+            </div>
+        </div>
+
+        <div class="steps-indicator">
+            <div class="step active" id="step-indicator-1">1</div>
+            <div class="step-connector" id="connector-1-2"></div>
+            <div class="step" id="step-indicator-2">2</div>
+            <div class="step-connector" id="connector-2-3"></div>
+            <div class="step" id="step-indicator-3">3</div>
+        </div>
+
+        <div class="card">
+            <!-- Step 1: Login Credentials -->
+            <div class="step-content active" id="step-1">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="username">Email Address</label>
+                        <input type="email" id="username" placeholder="you@example.com" autocomplete="username" value="example@gmail.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" autocomplete="current-password" value="dummy-password">
+                        <p class="info-text">Your credentials are used only for the current session</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="imap_server">IMAP Server</label>
+                        <input type="text" id="imap_server" placeholder="imap.example.com" value="imap.gmail.com">
+                        <p class="info-text">Common servers: imap.gmail.com, outlook.office365.com, imap.mail.yahoo.com</p>
+                    </div>
+                </div>
+                
+                <div id="connection-status"></div>
+                
+                <button onclick="verifyConnection()" id="verify-button">
+                    <i class="fas fa-lock"></i> Verify Connection
+                </button>
+            </div>
+
+            <!-- Step 2: Select Folders -->
+            <div class="step-content" id="step-2">
+                <div class="progress-container">
+                    <div class="progress-bar" id="folders-progress-bar"></div>
+                </div>
+                <div id="folders-loading">
+                    <div class="processing">
+                        <div class="spinner"></div>
+                        <p>Loading folders and statistics...</p>
+                    </div>
+                </div>
+                <div id="folders-container" style="display: none;">
+                    <div class="folder-grid" id="folder-grid"></div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label for="cutoff_date">Delete Emails Before</label>
+                    <input type="date" id="cutoff_date">
+                    <p class="info-text">Only emails before this date will be deleted</p>
+                </div>
+                
+                <button onclick="goToStep(3)" id="next-button" style="margin-top: 20px;" disabled>
+                    <i class="fas fa-arrow-right"></i> Next: Review & Confirm
+                </button>
+                <button onclick="goToStep(1)" class="btn-secondary" style="margin-top: 10px;">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+
+            <!-- Step 3: Review & Clean -->
+            <div class="step-content" id="step-3">
+                <h3 style="margin-bottom: 20px; font-family: 'Playfair Display', serif;">Review Your Cleanup Settings</h3>
+                
+                <div id="review-summary" style="margin-bottom: 25px;"></div>
+                
+                <div class="warning">
+                    <i class="fas fa-exclamation-triangle"></i> Warning: This will permanently delete the selected emails. There is no undo function.
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button onclick="showConfirmDialog()" style="flex: 2;">
+                        <i class="fas fa-trash-alt"></i> Clean Emails
+                    </button>
+                    <button onclick="goToStep(2)" class="btn-secondary" style="flex: 1;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="results" style="display: none;"></div>
+
+        <!-- Confirmation Popup -->
+        <div class="popup-overlay" id="confirm-popup">
+            <div class="popup-content">
+                <button class="popup-close" onclick="hideConfirmDialog()">×</button>
+                <h3 class="popup-title">Confirm Email Deletion</h3>
+                <p class="popup-text" id="confirm-text">Are you sure you want to permanently delete all selected emails? This action cannot be undone.</p>
+                <div class="popup-buttons">
+                    <button onclick="hideConfirmDialog()" class="btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button onclick="cleanEmails()">
+                        <i class="fas fa-check"></i> Confirm Deletion
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <div class="footer-logo">MailWipe</div>
+            <p>Privacy-focused email cleanup tool • No email content is stored • <span id="current-year"></span></p>
+            <p>Created by <a href="https://x.com/partymapper" target="_blank" style="color: var(--accent);">Nikhil Talreja</a> • <a href="https://instagram.com/nikhiltalrejasocial" target="_blank" style="color: var(--accent);">Instagram</a> • <a href="https://github.com/nikhiltalreja/mailwipe" target="_blank" style="color: var(--accent);">Report Bugs</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Pre-load the form with defaults on load
+        window.onload = function() {
+            // Set the cutoff date to 6 months ago if not already set
+            if (!document.getElementById('cutoff_date').value) {
+                const sixMonthsAgo = new Date();
+                sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                document.getElementById('cutoff_date').value = sixMonthsAgo.toISOString().split('T')[0];
+            }
+            
+            // Set current year in footer
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+        };
+        
+        // Navigation between steps
+        function goToStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.step-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Update step indicators
+            document.querySelectorAll('.step').forEach(el => {
+                el.classList.remove('active', 'completed');
+            });
+            
+            // Reset connectors
+            document.querySelectorAll('.step-connector').forEach(el => {
+                el.classList.remove('active', 'completed');
+            });
+            
+            // Show the requested step
+            document.getElementById(`step-${step}`).classList.add('active');
+            
+            // Update the indicators based on current step
+            for (let i = 1; i < step; i++) {
+                document.getElementById(`step-indicator-${i}`).classList.add('completed');
+                if (i < 3) {
+                    document.getElementById(`connector-${i}-${i+1}`).classList.add('completed');
+                }
+            }
+            
+            document.getElementById(`step-indicator-${step}`).classList.add('active');
+            
+            if (step > 1) {
+                document.getElementById(`connector-${step-1}-${step}`).classList.add('active');
+            }
+            
+            // If we're on step 3, generate the review summary
+            if (step === 3) {
+                generateReviewSummary();
+            }
+        }
+        
+        // Verify the connection to the IMAP server
+        function verifyConnection() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const imapServer = document.getElementById('imap_server').value;
+            
+            // Validate inputs
+            if (!username || !password || !imapServer) {
+                showConnectionStatus('error', 'Please fill in all fields');
+                return;
+            }
+            
+            // Disable the verify button
+            const verifyButton = document.getElementById('verify-button');
+            verifyButton.disabled = true;
+            verifyButton.innerHTML = '<div class="spinner" style="width: 20px; height: 20px;"></div> Verifying...';
+            
+            showConnectionStatus('info', 'Connecting to server...');
+            
+            // Make real API call to verify connection
+            fetch('/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username, 
+                    password,
+                    imap_server: imapServer
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const verifyButton = document.getElementById('verify-button');
+                
+                if (data.status === 'success') {
+                    showConnectionStatus('success', 'Successfully connected to server!');
+                    verifyButton.disabled = false;
+                    verifyButton.innerHTML = '<i class="fas fa-check"></i> Connection Verified';
+                    
+                    // Move to step 2
+                    setTimeout(() => {
+                        goToStep(2);
+                        loadFolders();
+                    }, 800);
+                } else {
+                    // Error path
+                    showConnectionStatus('error', `Failed to connect: ${data.message}`);
+                    verifyButton.disabled = false;
+                    verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showConnectionStatus('error', 'Connection failed. Please check your network connection.');
+                verifyButton.disabled = false;
+                verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
+            });
+            
+            // Fallback for demo/development
+            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+                simulateVerifyConnection(username, password, imapServer);
+                return; // Skip the API call
+            }
+        }
+        
+        // This simulates verifying connection - only used for demo/development
+        function simulateVerifyConnection(username, password, imapServer) {
+            setTimeout(() => {
+                const verifyButton = document.getElementById('verify-button');
+                
+                // Success path - in production, this would be the response from the server
+                if (imapServer.includes('gmail') || imapServer.includes('outlook') || imapServer.includes('yahoo')) {
+                    showConnectionStatus('success', 'Successfully connected to server!');
+                    verifyButton.disabled = false;
+                    verifyButton.innerHTML = '<i class="fas fa-check"></i> Connection Verified';
+                    
+                    // Move to step 2
+                    setTimeout(() => {
+                        goToStep(2);
+                        loadFolders();
+                    }, 800);
+                } else {
+                    // Error path
+                    showConnectionStatus('error', 'Failed to connect. Please check your credentials and server address.');
+                    verifyButton.disabled = false;
+                    verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
+                }
+            }, 1500);
+        }
+        
+        // Display connection status
+        function showConnectionStatus(type, message) {
+            const statusEl = document.getElementById('connection-status');
+            statusEl.className = 'connection-status ' + type;
+            
+            let icon = '';
+            switch (type) {
+                case 'success': icon = '<i class="fas fa-check-circle"></i>'; break;
+                case 'error': icon = '<i class="fas fa-exclamation-circle"></i>'; break;
+                case 'warning': icon = '<i class="fas fa-exclamation-triangle"></i>'; break;
+                case 'info': icon = '<i class="fas fa-info-circle"></i>'; break;
+            }
+            
+            statusEl.innerHTML = `${icon} ${message}`;
+        }
+        
+        // Load folders with statistics
+        function loadFolders() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const imapServer = document.getElementById('imap_server').value;
+            
+            const foldersLoading = document.getElementById('folders-loading');
+            const foldersContainer = document.getElementById('folders-container');
+            const progressBar = document.getElementById('folders-progress-bar');
+            
+            foldersLoading.style.display = 'block';
+            foldersContainer.style.display = 'none';
+            
+            // Start progress animation
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                // Increment more slowly to show real progress
+                progress += 2;
+                if (progress > 90) progress = 90; // Cap at 90% until we get real response
+                progressBar.style.width = `${progress}%`;
+            }, 100);
+            
+            // Make API call to get folders
+            fetch('/get_folders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username, 
+                    password,
+                    imap_server: imapServer
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Complete the progress bar
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    if (data.status === 'success') {
+                        foldersLoading.style.display = 'none';
+                        foldersContainer.style.display = 'block';
+                        
+                        // Display the folders from the API
+                        displayFolders(data.folders);
+                    } else {
+                        // Show error
+                        foldersLoading.innerHTML = `
+                            <div class="connection-status error" style="margin-top: 0;">
+                                <i class="fas fa-exclamation-circle"></i> 
+                                Error loading folders: ${data.message}
+                            </div>
+                            <button onclick="goToStep(1)" class="btn-secondary" style="margin-top: 15px;">
+                                <i class="fas fa-arrow-left"></i> Go Back
+                            </button>
+                        `;
+                    }
+                }, 500);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                clearInterval(progressInterval);
+                
+                // Show error message
+                foldersLoading.innerHTML = `
+                    <div class="connection-status error" style="margin-top: 0;">
+                        <i class="fas fa-exclamation-circle"></i> 
+                        Error loading folders. Please check your network connection.
+                    </div>
+                    <button onclick="goToStep(1)" class="btn-secondary" style="margin-top: 15px;">
+                        <i class="fas fa-arrow-left"></i> Go Back
+                    </button>
+                `;
+            });
+            
+            // Fallback for demo/development
+            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+                simulateLoadFolders();
+                return; // Skip the API call
+            }
+        }
+        
+        // Simulate folder loading for demo/development
+        function simulateLoadFolders() {
+            const foldersLoading = document.getElementById('folders-loading');
+            const foldersContainer = document.getElementById('folders-container');
+            const progressBar = document.getElementById('folders-progress-bar');
+            
+            foldersLoading.style.display = 'block';
+            foldersContainer.style.display = 'none';
+            
+            // Simulate progress for loading
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    setTimeout(() => {
+                        foldersLoading.style.display = 'none';
+                        foldersContainer.style.display = 'block';
+                        
+                        // Load folder list with simulated data
+                        displayFolders(getSimulatedFolders());
+                    }, 500);
+                }
+            }, 100);
+        }
+        
+        // Display folders in the grid
+        function displayFolders(folders) {
+            const folderGrid = document.getElementById('folder-grid');
+            folderGrid.innerHTML = '';
+            
+            folders.forEach((folder, index) => {
+                const item = document.createElement('div');
+                item.className = 'folder-item';
+                item.style.animationDelay = `${0.1 * index}s`;
+                
+                let iconClass;
+                switch (folder.name) {
+                    case 'INBOX': iconClass = 'fa-inbox'; break;
+                    case 'Sent': iconClass = 'fa-paper-plane'; break;
+                    case 'Drafts': iconClass = 'fa-edit'; break;
+                    case 'Trash': iconClass = 'fa-trash-alt'; break;
+                    case 'Spam': iconClass = 'fa-ban'; break;
+                    case 'Archive': iconClass = 'fa-archive'; break;
+                    default: iconClass = 'fa-folder'; break;
+                }
+                
+                item.innerHTML = `
+                    <div class="folder-header">
+                        <i class="fas ${iconClass} folder-icon"></i>
+                        <div class="folder-name">${folder.name}</div>
+                    </div>
+                    <div class="folder-stats">
+                        <div class="stat">
+                            <i class="fas fa-envelope"></i>
+                            <div class="stat-value">${folder.messageCount.toLocaleString()}</div>
+                            <div class="stat-label">Messages</div>
+                        </div>
+                        <div class="stat">
+                            <i class="fas fa-hdd"></i>
+                            <div class="stat-value">${folder.sizeFormatted}</div>
+                            <div class="stat-label">Size</div>
+                        </div>
+                    </div>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="folder-${index}" class="folder-checkbox" value="${folder.name}" ${folder.name === 'INBOX' || folder.name === 'Spam' ? 'checked' : ''}>
+                        <label for="folder-${index}">Include in cleanup</label>
+                    </div>
+                `;
+                
+                folderGrid.appendChild(item);
+            });
+            
+            // Enable the Next button once folders are loaded
+            document.getElementById('next-button').disabled = false;
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('.folder-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateFolderSelection);
+            });
+            
+            // Call once to initialize
+            updateFolderSelection();
+        }
+        
+        // Update folder selection based on checkboxes
+        function updateFolderSelection() {
+            const checkboxes = document.querySelectorAll('.folder-checkbox:checked');
+            document.getElementById('next-button').disabled = checkboxes.length === 0;
+        }
+        
+        // Generate review summary for step 3
+        function generateReviewSummary() {
+            const email = document.getElementById('username').value;
+            const server = document.getElementById('imap_server').value;
+            const cutoffDate = formatDate(document.getElementById('cutoff_date').value);
+            
+            const selectedFolders = Array.from(document.querySelectorAll('.folder-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            
+            const foldersList = selectedFolders.map(folder => `<span style="color: var(--accent);">${folder}</span>`).join(', ');
+            
+            document.getElementById('review-summary').innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <strong>Email Account:</strong> ${email}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>Server:</strong> ${server}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>Delete Emails Before:</strong> ${cutoffDate}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>Selected Folders:</strong> ${foldersList}
+                </div>
+            `;
+            
+            // Update confirmation popup text
+            document.getElementById('confirm-text').innerHTML = `
+                Are you sure you want to permanently delete all emails before <strong>${cutoffDate}</strong> 
+                from the following folders: ${foldersList}?
+                <br><br>
+                <strong style="color: var(--warning);">This action cannot be undone.</strong>
+            `;
+        }
+        
+        // Show confirmation dialog
+        function showConfirmDialog() {
+            document.getElementById('confirm-popup').classList.add('show');
+        }
+        
+        // Hide confirmation dialog
+        function hideConfirmDialog() {
+            document.getElementById('confirm-popup').classList.remove('show');
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            if (!dateString) return null;
+            
+            const date = new Date(dateString);
+            // Format date as DD-MMM-YYYY (e.g., 01-Jan-2021)
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            
+            return `${day}-${month}-${year}`;
+        }
+        
+        // Clean emails function
+        function cleanEmails() {
+            // Hide confirmation popup
+            hideConfirmDialog();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const imapServer = document.getElementById('imap_server').value;
+            const cutoffDateInput = document.getElementById('cutoff_date').value;
+            
+            const selectedFolders = Array.from(document.querySelectorAll('.folder-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            
+            // Format the date for IMAP
+            const cutoff_date = formatDate(cutoffDateInput) || '01-Jan-2021';
+            
+            // Show results section with progress tracker
+            const resultsElement = document.getElementById('results');
+            resultsElement.style.display = 'block';
+            resultsElement.className = 'show';
+            
+            // Create progress tracker UI
+            let progressHtml = `
+                <h3><i class="fas fa-sync fa-spin"></i> Cleanup in Progress</h3>
+                <div class="progress-container" style="margin: 20px 0; height: 12px;">
+                    <div class="progress-bar" id="cleanup-progress-bar" style="width: 0%;"></div>
+                </div>
+                <div id="progress-status" style="margin-bottom: 20px; text-align: center;">
+                    <span id="progress-percentage">0%</span> complete - preparing to clean
+                </div>
+                <div id="current-folder-status" style="text-align: center; color: var(--text-secondary);">
+                    Connecting to server...
+                </div>
+            `;
+            
+            resultsElement.innerHTML = progressHtml;
+            
+            // Scroll to results
+            resultsElement.scrollIntoView({ behavior: 'smooth' });
+            
+            // Setup progress tracking elements
+            const progressBar = document.getElementById('cleanup-progress-bar');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const progressStatus = document.getElementById('progress-status');
+            const currentFolderStatus = document.getElementById('current-folder-status');
+            
+            // Set initial progress
+            let currentProgress = 5;
+            progressBar.style.width = `${currentProgress}%`;
+            progressPercentage.textContent = `${currentProgress}%`;
+            
+            // Progress simulation during network calls (when we don't have real progress info)
+            const progressInterval = setInterval(() => {
+                // Increase progress gradually but cap at 95% until we get real completion
+                currentProgress += 0.5;
+                if (currentProgress > 95) currentProgress = 95;
+                
+                progressBar.style.width = `${currentProgress}%`;
+                progressPercentage.textContent = `${Math.floor(currentProgress)}%`;
+            }, 300);
+            
+            // Fallback for demo/development
+            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+                simulateCleanEmails(selectedFolders);
+                return; // Skip the API call
+            }
+            
+            // Make API call to clean emails (asynchronously with progress tracking)
+            fetch('/clean', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username, 
+                    password,
+                    imap_server: imapServer,
+                    folders: selectedFolders,
+                    cutoff_date
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.task_id) {
+                    // We have a task ID - start polling for progress
+                    const taskId = data.task_id;
+                    
+                    // Poll for progress updates every second
+                    const pollProgressInterval = setInterval(() => {
+                        fetch(`/progress/${taskId}`)
+                            .then(response => response.json())
+                            .then(progressData => {
+                                if (progressData.status === 'success') {
+                                    const progress = progressData.progress;
+                                    
+                                    // Update the progress bar
+                                    progressBar.style.width = `${progress.overall_progress}%`;
+                                    progressPercentage.textContent = `${Math.floor(progress.overall_progress)}%`;
+                                    
+                                    // Update status texts
+                                    progressStatus.textContent = `${Math.floor(progress.overall_progress)}% complete - ${progress.folders_completed} of ${progress.total_folders} folders processed`;
+                                    currentFolderStatus.innerHTML = `Processing <strong>${progress.current_folder}</strong>...`;
+                                    
+                                    // If the task is completed, show the results
+                                    if (progress.completed) {
+                                        clearInterval(pollProgressInterval);
+                                        clearInterval(progressInterval);
+                                        
+                                        // Set to 100% before showing results
+                                        progressBar.style.width = '100%';
+                                        progressPercentage.textContent = '100%';
+                                        progressStatus.textContent = 'Cleanup completed!';
+                                        currentFolderStatus.textContent = 'Finalizing...';
+                                        
+                                        // Show final results after a short delay
+                                        setTimeout(() => {
+                                            displayResults(
+                                                progress.results, 
+                                                progress.total_emails_deleted, 
+                                                progress.total_size_deleted || 0, 
+                                                progress.time_taken || '0 seconds'
+                                            );
+                                        }, 800);
+                                    }
+                                    
+                                    // If there was an error, show it
+                                    if (progress.error) {
+                                        clearInterval(pollProgressInterval);
+                                        clearInterval(progressInterval);
+                                        
+                                        resultsElement.innerHTML = `
+                                            <div class="connection-status error" style="margin: 20px 0;">
+                                                <i class="fas fa-exclamation-circle"></i> 
+                                                Error cleaning emails: ${progress.error}
+                                            </div>
+                                            <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
+                                                <i class="fas fa-arrow-left"></i> Go Back
+                                            </button>
+                                        `;
+                                    }
+                                } else {
+                                    // Progress endpoint error
+                                    console.error('Error fetching progress:', progressData.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error polling progress:', error);
+                                // Don't stop polling on occasional network error
+                            });
+                    }, 1000);
+                } else {
+                    // No task ID or error
+                    clearInterval(progressInterval);
+                    
+                    // Show error
+                    resultsElement.innerHTML = `
+                        <div class="connection-status error" style="margin: 20px 0;">
+                            <i class="fas fa-exclamation-circle"></i> 
+                            Error cleaning emails: ${data.message || 'Unknown error'}
+                        </div>
+                        <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
+                            <i class="fas fa-arrow-left"></i> Go Back
+                        </button>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                clearInterval(progressInterval);
+                
+                // Show error message
+                resultsElement.innerHTML = `
+                    <div class="connection-status error" style="margin: 20px 0;">
+                        <i class="fas fa-exclamation-circle"></i> 
+                        Network error while cleaning emails. Please check your connection.
+                    </div>
+                    <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
+                        <i class="fas fa-arrow-left"></i> Go Back
+                    </button>
+                `;
+            });
+        }
+        
+        // Simulate email cleanup for demo purposes
+        function simulateCleanEmails(folders) {
+            const cutoffDateInput = document.getElementById('cutoff_date').value;
+            const cutoff_date = formatDate(cutoffDateInput) || '01-Jan-2021';
+            
+            // Show results section with progress tracker
+            const resultsElement = document.getElementById('results');
+            resultsElement.style.display = 'block';
+            resultsElement.className = 'show';
+            
+            // Create progress tracker UI
+            let progressHtml = `
+                <h3><i class="fas fa-sync fa-spin"></i> Cleanup in Progress</h3>
+                <div class="progress-container" style="margin: 20px 0; height: 12px;">
+                    <div class="progress-bar" id="cleanup-progress-bar" style="width: 0%;"></div>
+                </div>
+                <div id="progress-status" style="margin-bottom: 20px; text-align: center;">
+                    <span id="progress-percentage">0%</span> complete - preparing to clean
+                </div>
+                <div id="current-folder-status" style="text-align: center; color: var(--text-secondary);">
+                    Connecting to server...
+                </div>
+            `;
+            
+            resultsElement.innerHTML = progressHtml;
+            
+            // Scroll to results
+            resultsElement.scrollIntoView({ behavior: 'smooth' });
+            
+            // Prepare the dummy results
+            const dummyResults = {};
+            let totalDeleted = 0;
+            let totalSize = 0;
+            let totalFolders = folders.length;
+            let processedFolders = 0;
+            
+            // Generate the random results for each folder (but don't display yet)
+            folders.forEach(folder => {
+                const rand = Math.random();
+                if (rand < 0.1) {
+                    // Simulate an error for 10% of folders
+                    dummyResults[folder] = {
+                        status: 'error',
+                        message: 'Connection timeout',
+                        count: 0,
+                        size: 0
+                    };
+                } else {
+                    // Generate random counts based on folder type
+                    let count;
+                    if (folder === 'INBOX') count = Math.floor(Math.random() * 5000) + 2000;
+                    else if (folder === 'Sent') count = Math.floor(Math.random() * 2000) + 500;
+                    else if (folder === 'Spam') count = Math.floor(Math.random() * 10000) + 1000;
+                    else if (folder === 'Trash') count = Math.floor(Math.random() * 3000) + 200;
+                    else count = Math.floor(Math.random() * 1000) + 100;
+                    
+                    // Generate random size
+                    const size = count * (Math.random() * 50 + 10); // 10-60KB per email
+                    
+                    dummyResults[folder] = {
+                        status: 'success',
+                        message: `Deleted ${count} emails`,
+                        count: count,
+                        size: size
+                    };
+                    
+                    totalDeleted += count;
+                    totalSize += size;
+                }
+            });
+            
+            // Calculate processing time per folder based on total emails
+            // More emails = more time
+            const processingTime = (Math.random() * 20 + 5).toFixed(2);
+            const timePerFolder = Math.max(1000, Math.min(3000, totalDeleted / totalFolders / 50));
+            
+            // Process each folder with a delay to simulate real processing
+            let currentProgress = 5; // Start at 5%
+            const progressBar = document.getElementById('cleanup-progress-bar');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const progressStatus = document.getElementById('progress-status');
+            const currentFolderStatus = document.getElementById('current-folder-status');
+            
+            progressBar.style.width = `${currentProgress}%`;
+            progressPercentage.textContent = `${currentProgress}%`;
+            
+            // Update progress every 300ms
+            const progressInterval = setInterval(() => {
+                // Increase progress gradually
+                currentProgress += 0.5;
+                if (currentProgress > 95) currentProgress = 95;
+                
+                progressBar.style.width = `${currentProgress}%`;
+                progressPercentage.textContent = `${Math.floor(currentProgress)}%`;
+            }, 300);
+            
+            // Process each folder with a delay
+            const processFolders = (index) => {
+                if (index >= folders.length) {
+                    // All folders processed
+                    clearInterval(progressInterval);
+                    
+                    // Set to 100%
+                    progressBar.style.width = '100%';
+                    progressPercentage.textContent = '100%';
+                    progressStatus.textContent = 'Cleanup completed!';
+                    currentFolderStatus.textContent = 'Finalizing...';
+                    
+                    // Show final results after a short delay
+                    setTimeout(() => {
+                        displayResults(dummyResults, totalDeleted, totalSize, processingTime);
+                    }, 800);
+                    
+                    return;
+                }
+                
+                const folder = folders[index];
+                const result = dummyResults[folder];
+                const count = result.count || 0;
+                
+                // Update status text
+                currentFolderStatus.innerHTML = `
+                    Processing <strong>${folder}</strong> - 
+                    ${result.status === 'success' ? 
+                        `Deleting ${count.toLocaleString()} emails` : 
+                        'Connection error'}
+                `;
+                
+                // Calculate progress jump based on folder's email count proportion
+                const folderProgress = (count / totalDeleted) * 70; // 70% of progress is folders
+                
+                // Process next folder after delay based on folder size
+                setTimeout(() => {
+                    processedFolders++;
+                    const progressText = `${Math.floor(currentProgress)}% complete - ${processedFolders} of ${totalFolders} folders processed`;
+                    progressStatus.textContent = progressText;
+                    
+                    processFolders(index + 1);
+                }, timePerFolder + Math.random() * 500);
+            };
+            
+            // Start processing after initial delay
+            setTimeout(() => {
+                progressStatus.textContent = `${Math.floor(currentProgress)}% complete - connecting to server`;
+                
+                // Start processing folders
+                setTimeout(() => {
+                    processFolders(0);
+                }, 1000);
+            }, 1000);
+        }
+        
+        // Display results after cleanup
+        function displayResults(results, totalDeleted, totalSize, processingTime) {
+            const resultsElement = document.getElementById('results');
+            resultsElement.className = 'show';
+            
+            let html = `<h3><i class="fas fa-check-circle"></i> Cleanup Complete</h3>`;
+            html += `<div id="results-grid">`;
+            
+            Object.entries(results).forEach(([folder, result], index) => {
+                // Handle both new API format and simulator format
+                const isSuccess = typeof result === 'object' 
+                    ? result.status === 'success' 
+                    : result.includes('Deleted') || result.includes('No emails found');
+                
+                let count = 0;
+                if (typeof result === 'object') {
+                    count = result.count || 0;
+                } else if (result.includes('Deleted')) {
+                    // Extract count from string (legacy format)
+                    const match = result.match(/Deleted (\d+)/);
+                    if (match) count = parseInt(match[1]);
+                }
+                
+                let iconClass;
+                switch (folder) {
+                    case 'INBOX': iconClass = 'fa-inbox'; break;
+                    case 'Sent': iconClass = 'fa-paper-plane'; break;
+                    case 'Drafts': iconClass = 'fa-edit'; break;
+                    case 'Trash': iconClass = 'fa-trash-alt'; break;
+                    case 'Spam': iconClass = 'fa-ban'; break;
+                    case 'Archive': iconClass = 'fa-archive'; break;
+                    case 'Junk': iconClass = 'fa-ban'; break;
+                    default: iconClass = 'fa-folder'; break;
+                }
+                
+                html += `
+                    <div class="result-card ${isSuccess ? '' : 'error'}" style="animation-delay: ${0.1 * index}s;">
+                        <div class="folder-name">
+                            <i class="fas ${iconClass} folder-icon"></i> ${folder}
+                        </div>
+                        <div class="count">${count.toLocaleString()}</div>
+                        <div class="status">
+                            <i class="fas ${isSuccess ? 'fa-check' : 'fa-times'}" style="color: ${isSuccess ? 'var(--success)' : 'var(--danger)'};"></i>
+                            ${isSuccess ? 'Deleted' : 'Failed'}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            
+            // Format size for display - check if it's a string already
+            let sizeDisplay = typeof totalSize === 'string' 
+                ? totalSize 
+                : formatSize(totalSize);
+                
+            // Handle processing time formatting
+            let timeValue = processingTime;
+            if (typeof processingTime === 'string' && processingTime.includes('seconds')) {
+                // Extract the numeric value if it's in the format "X.XX seconds"
+                const match = processingTime.match(/(\d+\.\d+)/);
+                if (match) timeValue = match[1];
+            }
+            
+            // Calculate emails per second
+            let emailsPerSecond = 0;
+            if (totalDeleted > 0 && timeValue > 0) {
+                emailsPerSecond = Math.round(totalDeleted / parseFloat(timeValue));
+            }
+            
+            // Add overall stats
+            html += `
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value">${totalDeleted.toLocaleString()}</div>
+                        <div class="stat-label">Emails Deleted</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">${sizeDisplay}</div>
+                        <div class="stat-label">Space Freed</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">${timeValue}s</div>
+                        <div class="stat-label">Processing Time</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">${emailsPerSecond.toLocaleString()}</div>
+                        <div class="stat-label">Emails/Second</div>
+                    </div>
+                </div>
+            `;
+            
+            resultsElement.innerHTML = html;
+            
+            // Add animation classes after a slight delay
+            setTimeout(() => {
+                document.querySelectorAll('.result-card').forEach(card => {
+                    card.classList.add('show');
+                });
+                
+                document.querySelectorAll('.stat-box').forEach(box => {
+                    box.classList.add('show');
+                });
+            }, 100);
+            
+            // Scroll to results
+            resultsElement.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Simulate folder data
+        function getSimulatedFolders() {
+            return [
+                {
+                    name: 'INBOX',
+                    messageCount: 8742,
+                    size: 1457000000,
+                    sizeFormatted: '1.4 GB'
+                },
+                {
+                    name: 'Sent',
+                    messageCount: 3201,
+                    size: 625000000,
+                    sizeFormatted: '625 MB'
+                },
+                {
+                    name: 'Drafts',
+                    messageCount: 34,
+                    size: 5200000,
+                    sizeFormatted: '5.2 MB'
+                },
+                {
+                    name: 'Spam',
+                    messageCount: 15879,
+                    size: 3250000000,
+                    sizeFormatted: '3.2 GB'
+                },
+                {
+                    name: 'Trash',
+                    messageCount: 4765,
+                    size: 980000000,
+                    sizeFormatted: '980 MB'
+                },
+                {
+                    name: 'Archive',
+                    messageCount: 12458,
+                    size: 2800000000,
+                    sizeFormatted: '2.8 GB'
+                },
+                {
+                    name: 'Important',
+                    messageCount: 732,
+                    size: 154000000,
+                    sizeFormatted: '154 MB'
+                },
+                {
+                    name: 'Promotions',
+                    messageCount: 9854,
+                    size: 1250000000,
+                    sizeFormatted: '1.2 GB'
+                }
+            ];
+        }
+        
+        // Format size for display
+        function formatSize(sizeInKB) {
+            if (sizeInKB < 1024) {
+                return `${Math.round(sizeInKB)} KB`;
+            } else if (sizeInKB < 1048576) {
+                return `${(sizeInKB / 1024).toFixed(1)} MB`;
+            } else {
+                return `${(sizeInKB / 1048576).toFixed(1)} GB`;
+            }
+        }
+    </script>
+</body>
+</html>
