@@ -1,4 +1,4 @@
-# MailWipe
+# EmailWipe
 
 A fast, elegant email cleanup tool that helps you delete old emails in bulk. Zero scanning, zero restrictions.
 
@@ -10,6 +10,7 @@ A fast, elegant email cleanup tool that helps you delete old emails in bulk. Zer
 - Works with all IMAP email providers (Gmail, Outlook, Yahoo, etc.)
 - Real-time progress tracking with detailed statistics
 - Elegant, responsive UI with dark theme
+- Demo mode for trying the app without affecting real emails
 
 ## Tech Stack
 
@@ -21,8 +22,16 @@ A fast, elegant email cleanup tool that helps you delete old emails in bulk. Zer
 
 1. Clone the repository
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run the development server: `python app.py`
+3. Run the development server: `python3 app.py`
 4. Visit `http://localhost:5000` in your browser
+
+### Demo Mode
+
+The application includes a demo mode that simulates the email cleanup process without actually connecting to any email servers or deleting any emails:
+
+- Access the demo at: `http://localhost:5000/demo`
+- The demo mode runs in a separate route with clear indicators that it's a demo
+- Users can switch between demo and live modes using links in the UI
 
 ## Deployment
 
@@ -34,6 +43,7 @@ This application is ready for deployment on Railway, Heroku, or any other platfo
 2. Create a new project on Railway
 3. Connect your GitHub repository
 4. Railway will automatically detect the Python project and deploy it
+5. Set up a custom domain (emailwipe.com) in Railway's domain settings
 
 ## Author
 

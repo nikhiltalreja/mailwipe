@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailWipe Demo - Free Email Cleanup Tool</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Demo of EmailWipe - Free email cleanup tool that quickly removes old emails. No message count restrictions, works with Gmail, Outlook, Yahoo and other email providers.">
+    <meta name="keywords" content="email cleanup demo, delete old emails, email management, free email tool, gmail cleaner, outlook cleaner">
+    <meta name="author" content="Nikhil Talreja">
+    <meta property="og:title" content="EmailWipe Demo - Free Email Cleanup Tool">
+    <meta property="og:description" content="Try the demo of our free email cleanup tool with no message count restrictions.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="EmailWipe Demo - Free Email Cleanup Tool">
+    <meta name="twitter:description" content="Try the demo of our free email cleanup tool with no message count restrictions.">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Yellowtail&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --bg-card: #162447;
+            --accent: #e94560;
+            --accent-hover: #ff5773;
+            --accent-light: #ff758f;
+            --text-primary: #ffffff;
+            --text-secondary: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --danger: #ff5757;
+            --success: #4ecca3;
+            --warning: #ffb142;
+            --info: #3498db;
+            --box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            --box-shadow-hover: 0 15px 30px rgba(0, 0, 0, 0.3);
+            --radius: 12px;
+            --border: 2px solid rgba(233, 69, 96, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(233, 69, 96, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 80% 80%, rgba(15, 52, 96, 0.2) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+            position: relative;
+        }
+
+        .logo-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .demo-badge {
+            position: absolute;
+            top: -10px;
+            right: -25px;
+            background: var(--warning);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+            transform: rotate(5deg);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: rotate(5deg) scale(1); }
+            50% { transform: rotate(5deg) scale(1.1); }
+            100% { transform: rotate(5deg) scale(1); }
+        }
+
+        .logo-border {
+            position: relative;
+            display: inline-block;
+            padding: 15px 40px;
+            border: 3px solid var(--accent);
+            border-radius: var(--radius);
+            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3);
+            margin-bottom: 20px;
+            background: rgba(22, 36, 71, 0.7);
+        }
+
+        .logo-border::before, .logo-border::after {
+            content: "★";
+            position: absolute;
+            font-size: 1.5rem;
+            color: var(--accent);
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .logo-border::before {
+            left: 10px;
+        }
+
+        .logo-border::after {
+            right: 10px;
+        }
+
+        .logo {
+            font-family: 'Yellowtail', cursive;
+            font-size: 4rem;
+            color: var(--text-primary);
+            margin: 0;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3),
+                         0 0 10px rgba(233, 69, 96, 0.6);
+            letter-spacing: 2px;
+        }
+
+        .tagline {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            background-color: var(--bg-card);
+            padding: 20px;
+            border-radius: var(--radius);
+            flex: 1;
+            min-width: 180px;
+            text-align: center;
+            box-shadow: var(--box-shadow);
+            transition: all 0.3s ease;
+            border: var(--border);
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--box-shadow-hover);
+            border-color: var(--accent);
+        }
+
+        .feature i {
+            font-size: 2rem;
+            color: var(--accent);
+            margin-bottom: 15px;
+            background: rgba(233, 69, 96, 0.1);
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            border-radius: 50%;
+        }
+
+        .feature h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+        }
+
+        .feature p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--box-shadow);
+            border: var(--border);
+            transition: all 0.3s ease;
+            position: relative; /* For step indicator */
+        }
+
+        .demo-notice {
+            background-color: rgba(255, 177, 66, 0.2);
+            color: var(--warning);
+            margin: 0 0 25px 0;
+            padding: 15px;
+            border-radius: var(--radius);
+            font-weight: 500;
+            border-left: 4px solid var(--warning);
+            text-align: center;
+        }
+
+        .goto-live {
+            display: block;
+            text-align: center;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: var(--success);
+            color: white;
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            max-width: 300px;
+        }
+
+        .goto-live:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(78, 204, 163, 0.4);
+        }
+
+        /* Rest of CSS from original file */
+        /* ... */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <div class="demo-badge">
+                    <i class="fas fa-flask"></i> DEMO
+                </div>
+                <div class="logo-border">
+                    <h1 class="logo">EmailWipe</h1>
+                </div>
+            </div>
+            <p class="tagline">Email cleaner that deletes in seconds, not hours</p>
+        </header>
+
+        <div class="demo-notice">
+            <strong>This is a DEMO version with simulated data.</strong><br>
+            No actual emails will be deleted. Feel free to try all features!
+        </div>
+
+        <a href="/" class="goto-live">
+            <i class="fas fa-arrow-right"></i> Go to the live version
+        </a>
+
+        <div id="demo-app">
+            <!-- Demo app will be loaded here by JavaScript -->
+        </div>
+
+        <div class="card" style="margin-top: 30px;">
+            <h3 style="margin-bottom: 15px; font-family: 'Playfair Display', serif;">After you've tried the demo</h3>
+            <p style="margin-bottom: 20px;">Ready to clean your actual email? Go to the live version to securely use MailWipe with your real email account.</p>
+            <a href="/" class="goto-live">
+                <i class="fas fa-arrow-right"></i> Go to the live version
+            </a>
+        </div>
+
+        <footer>
+            <div class="footer-logo">EmailWipe</div>
+            <p>Privacy-focused email cleanup tool • No email content is stored • <span id="current-year"></span></p>
+            <p>Created by <a href="https://x.com/partymapper" target="_blank" style="color: var(--accent);">Nikhil Talreja</a> • <a href="https://instagram.com/nikhiltalrejasocial" target="_blank" style="color: var(--accent);">Instagram</a> • <a href="https://github.com/nikhiltalreja/mailwipe" target="_blank" style="color: var(--accent);">Report Bugs</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Load the current year
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+        
+        // Load the demo app (iframe approach)
+        window.onload = function() {
+            const demoContainer = document.getElementById('demo-app');
+            
+            // Create iframe to load the application
+            const iframe = document.createElement('iframe');
+            iframe.src = '/demo-content';
+            iframe.style.width = '100%';
+            iframe.style.height = '1600px'; // Increased height to show all content
+            iframe.style.border = 'none';
+            iframe.style.overflow = 'hidden';
+            iframe.scrolling = 'no'; // Prevent scrolling in the iframe
+            
+            demoContainer.appendChild(iframe);
+        };
+    </script>
+</body>
+</html>

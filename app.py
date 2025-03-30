@@ -10,6 +10,7 @@ import socket
 import re
 import uuid
 import threading
+import urllib.parse
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -31,7 +32,16 @@ cleanup_progress = {}
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', demo_mode=False, debug=app.debug)
+
+@app.route('/demo')
+def demo():
+    return render_template('demo.html')
+
+@app.route('/demo-content')
+def demo_content():
+    # This will serve the app content for the iframe in demo mode
+    return render_template('index.html', demo_mode=True, debug=app.debug)
 
 @app.route('/verify', methods=['POST'])
 def verify_connection():
@@ -52,8 +62,13 @@ def verify_connection():
         # Set socket timeout
         socket.setdefaulttimeout(CONNECTION_TIMEOUT)
         
-        # Create SSL context with default verification options
+        # Create SSL context with verification options
         context = ssl.create_default_context()
+        
+        # Disable certificate verification for development/testing
+        # WARNING: In production, you should use proper certificate verification!
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         
         # IMAP Connection
         logger.info(f"Connecting to {imap_server}")
@@ -91,13 +106,22 @@ def get_folders():
         return jsonify({"status": "error", "message": "IMAP server is required"})
     
     logger.info(f"Getting folders for {username} on {imap_server}")
+    # Set up more verbose debugging for development
+    if app.debug:
+        mail_logger = logging.getLogger('imaplib')
+        mail_logger.setLevel(logging.DEBUG)
     
     try:
         # Set socket timeout
         socket.setdefaulttimeout(CONNECTION_TIMEOUT)
         
-        # Create SSL context with default verification options
+        # Create SSL context with verification options
         context = ssl.create_default_context()
+        
+        # Disable certificate verification for development/testing
+        # WARNING: In production, you should use proper certificate verification!
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         
         # IMAP Connection
         logger.info(f"Connecting to {imap_server}")
@@ -106,6 +130,32 @@ def get_folders():
         
         # Get list of folders
         status, folder_list = mail.list()
+        
+        logger.info(f"Received folder list status: {status}, count: {len(folder_list) if folder_list else 0}")
+        
+        # Always log folder details in debug mode for troubleshooting
+        if folder_list:
+            for i, f in enumerate(folder_list):
+                try:
+                    decoded = f.decode('utf-8', errors='ignore')
+                    logger.debug(f"Folder {i}: {f}")
+                    logger.debug(f"Decoded: {decoded}")
+                    
+                    # Try to extract parts for analysis
+                    parts_by_space = decoded.split()
+                    parts_by_quotes = decoded.split('"')
+                    
+                    logger.debug(f"Space-separated parts: {parts_by_space}")
+                    logger.debug(f"Quote-separated parts: {parts_by_quotes}")
+                    
+                    # Examine typical positions where folder names appear
+                    if len(parts_by_quotes) > 1:
+                        logger.debug(f"Potential folder name (quote method): {parts_by_quotes[-2]}")
+                    
+                    if len(parts_by_space) >= 3:
+                        logger.debug(f"Potential folder name (space method): {parts_by_space[-1]}")
+                except Exception as e:
+                    logger.debug(f"Error analyzing folder {i}: {str(e)}")
         
         folders = []
         total_messages = 0
@@ -124,20 +174,154 @@ def get_folders():
                 continue
                 
             # Parse folder name from response
-            # The response is in the format: b'(\\HasNoChildren) "/" "INBOX"'
-            match = re.search(r'"([^"]+)"$', folder_info.decode('utf-8', errors='ignore'))
-            if not match:
-                continue
-                
-            folder_name = match.group(1)
+            # The response can be in various formats depending on the mail server
+            # Common formats include: 
+            # - b'(\\HasNoChildren) "/" "INBOX"'
+            # - b'(\\HasNoChildren) "/" {13}\r\n[Gmail]/Sent'  (Gmail might use literal syntax)
             
-            # Skip some system folders
-            if folder_name.startswith('[Gmail]/') or folder_name.startswith('[Google Mail]/'):
-                folder_name = folder_name.split('/')[-1]
+            try:
+                # First try to decode the entire response
+                decoded_info = folder_info.decode('utf-8', errors='ignore')
+                if app.debug:
+                    logger.debug(f"Processing folder info: {decoded_info}")
+                
+                # Extract the folder name - universal approach based on Hostinger format
+                folder_name = None
+                
+                # Hostinger/mailhostbox format, based on the working code you shared
+                # This is the most reliable approach for these providers
+                parts = decoded_info.split('"')
+                if len(parts) > 1:
+                    try:
+                        # Try to get the last quoted string that's not empty
+                        for i in range(len(parts)-1, 0, -1):
+                            if parts[i].strip() and parts[i] != '/':
+                                folder_name = parts[i]
+                                if app.debug:
+                                    logger.debug(f"Found folder name in quotes: {folder_name}")
+                                break
+                    except Exception:
+                        pass
+                
+                # If the above didn't work, try other methods
+                if not folder_name or folder_name == '/' or not folder_name.strip():
+                    # Try the exact format that works with Hostinger
+                    try:
+                        folder_parts = decoded_info.split('"')
+                        folder_name = folder_parts[-2]
+                        if app.debug:
+                            logger.debug(f"Used Hostinger-specific extraction: {folder_name}")
+                    except Exception:
+                        # If still not working, try space-based splitting
+                        try:
+                            space_parts = decoded_info.split()
+                            folder_name = space_parts[-1].strip('"')
+                            if app.debug:
+                                logger.debug(f"Used space-based extraction: {folder_name}")
+                        except Exception:
+                            pass
+                
+                # Fallback if the split method didn't work
+                if not folder_name or not folder_name.strip():
+                    # Method 2: Try to extract from literal format {n}\r\nName
+                    if '{' in decoded_info and '}' in decoded_info:
+                        parts = decoded_info.split('}')
+                        if len(parts) > 1:
+                            raw_name = parts[1].strip()
+                            if raw_name.startswith('\r\n'):
+                                raw_name = raw_name[2:]
+                            folder_name = raw_name
+                            if app.debug:
+                                logger.debug(f"Extracted folder name using literal syntax: {folder_name}")
+                    
+                    # Method 3: Try to extract after separator
+                    elif ' "/" ' in decoded_info:
+                        parts = decoded_info.split(' "/" ')
+                        if len(parts) > 1:
+                            raw_name = parts[1].strip().strip('"')
+                            folder_name = raw_name
+                            if app.debug:
+                                logger.debug(f"Extracted folder name using separator: {folder_name}")
+                
+                # If we couldn't extract a folder name, skip this folder
+                if not folder_name:
+                    if app.debug:
+                        logger.debug(f"Could not extract folder name from: {decoded_info}")
+                    continue
+                    
+            except Exception as e:
+                logger.warning(f"Error parsing folder info: {str(e)}")
+                continue
+            
+            # Universal handling for all providers
+            
+            # Keep the original folder name for selection (this is what IMAP requires)
+            original_folder_name = folder_name
+            
+            # Create a display name that's more user-friendly
+            # 1. If it has a path separator, show just the last part
+            if '/' in folder_name:
+                display_name = folder_name.split('/')[-1]
+            else:
+                display_name = folder_name
+                
+            # 2. Clean up any special characters for display
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                
+            if app.debug:
+                logger.debug(f"Successfully parsed folder: '{folder_name}', display name: '{display_name}'")
             
             # Try to select the folder to get message count
             try:
-                status, folder_info = mail.select(f'"{folder_name}"', readonly=True)
+                # Gmail folders might need special handling
+                if app.debug:
+                    logger.debug(f"Attempting to select folder: '{folder_name}'")
+                    
+                # Universal folder selection approach that works with most IMAP servers
+                status = None
+                folder_info = None
+                success = False
+                
+                # Try different methods in sequence until one works
+                selection_methods = [
+                    # Method 1: Direct selection (no quotes) - works with many providers
+                    lambda: mail.select(folder_name, readonly=True),
+                    
+                    # Method 2: With double quotes - standard approach
+                    lambda: mail.select(f'"{folder_name}"', readonly=True),
+                    
+                    # Method 3: If folder has a path separator, try just the last part
+                    lambda: mail.select(f'"{folder_name.split("/")[-1]}"', readonly=True) 
+                    if '/' in folder_name else None,
+                    
+                    # Method 4: Try with URL encoding - helps with special characters
+                    lambda: mail.select(urllib.parse.quote(folder_name), readonly=True),
+                    
+                    # Method 5: Try with single quotes - some servers prefer this
+                    lambda: mail.select(f"'{folder_name}'", readonly=True)
+                ]
+                
+                # Try each method in sequence
+                for i, method in enumerate(selection_methods):
+                    if method is None:  # Skip this method if it's not applicable
+                        continue
+                        
+                    try:
+                        status, folder_info = method()
+                        if status == 'OK':
+                            if app.debug:
+                                logger.debug(f"Successfully selected folder using method {i+1}: {folder_name}")
+                            success = True
+                            break
+                    except Exception as e:
+                        if app.debug:
+                            logger.debug(f"Error selecting folder with method {i+1}: {str(e)}")
+                
+                # If all methods failed, use a dummy status
+                if not success:
+                    status = 'NO'
+                    folder_info = [b'0']
+                
                 message_count = 0
                 size = 0
                 
@@ -179,9 +363,10 @@ def get_folders():
                 # Format size
                 size_formatted = format_size(size)
                 
-                # Add to folder list
+                # Add to folder list with both original name and display name
                 folders.append({
-                    'name': folder_name,
+                    'name': folder_name,  # Original folder name needed for IMAP commands
+                    'displayName': display_name,  # User-friendly name for display
                     'messageCount': message_count,
                     'size': size,
                     'sizeFormatted': size_formatted
@@ -201,8 +386,10 @@ def get_folders():
         
         def folder_sort_key(folder):
             try:
+                # Use display name for sorting
+                display_name = folder['displayName'] if 'displayName' in folder else folder['name']
                 # Return position in common_folders list if present, otherwise a high number
-                return common_folders.index(folder['name'])
+                return common_folders.index(display_name)
             except ValueError:
                 return len(common_folders) + 1
         
@@ -296,8 +483,13 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         # Set socket timeout
         socket.setdefaulttimeout(CONNECTION_TIMEOUT)
         
-        # Create SSL context with default verification options
+        # Create SSL context with verification options
         context = ssl.create_default_context()
+        
+        # Disable certificate verification for development/testing
+        # WARNING: In production, you should use proper certificate verification!
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         
         # IMAP Connection
         logger.info(f"Connecting to {imap_server}")
@@ -322,8 +514,51 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         
         for folder_idx, folder in enumerate(folders):
             try:
-                # Select the folder
-                status, folder_info = mail.select(f'"{folder}"', readonly=True)
+                # Universal folder selection approach
+                status = None
+                folder_info = None
+                success = False
+                
+                # Try different methods in sequence until one works
+                selection_methods = [
+                    # Method 1: Direct selection (no quotes)
+                    lambda: mail.select(folder, readonly=True),
+                    
+                    # Method 2: With double quotes
+                    lambda: mail.select(f'"{folder}"', readonly=True),
+                    
+                    # Method 3: If folder has a path separator, try just the last part
+                    lambda: mail.select(f'"{folder.split("/")[-1]}"', readonly=True) 
+                    if '/' in folder else None,
+                    
+                    # Method 4: Try with URL encoding
+                    lambda: mail.select(urllib.parse.quote(folder), readonly=True),
+                    
+                    # Method 5: Try with single quotes
+                    lambda: mail.select(f"'{folder}'", readonly=True)
+                ]
+                
+                # Try each method in sequence
+                for i, method in enumerate(selection_methods):
+                    if method is None:  # Skip this method if it's not applicable
+                        continue
+                        
+                    try:
+                        status, folder_info = method()
+                        if status == 'OK':
+                            if app.debug:
+                                logger.debug(f"Successfully selected folder using method {i+1}: {folder}")
+                            success = True
+                            break
+                    except Exception as e:
+                        if app.debug:
+                            logger.debug(f"Error selecting folder with method {i+1}: {str(e)}")
+                
+                # If all methods failed, use a dummy status
+                if not success:
+                    status = 'NO'
+                    folder_info = [b'0']
+                    
                 if status != 'OK':
                     continue
                 
@@ -355,8 +590,51 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
                 cleanup_progress[task_id]["current_folder"] = folder
                 cleanup_progress[task_id]["current_folder_progress"] = 0
                 
-                # Select the folder
-                status, folder_info = mail.select(f'"{folder}"')
+                # Universal folder selection approach (without readonly flag for actual processing)
+                status = None
+                folder_info = None
+                success = False
+                
+                # Try different methods in sequence until one works
+                selection_methods = [
+                    # Method 1: Direct selection (no quotes)
+                    lambda: mail.select(folder),
+                    
+                    # Method 2: With double quotes
+                    lambda: mail.select(f'"{folder}"'),
+                    
+                    # Method 3: If folder has a path separator, try just the last part
+                    lambda: mail.select(f'"{folder.split("/")[-1]}"') 
+                    if '/' in folder else None,
+                    
+                    # Method 4: Try with URL encoding
+                    lambda: mail.select(urllib.parse.quote(folder)),
+                    
+                    # Method 5: Try with single quotes
+                    lambda: mail.select(f"'{folder}'")
+                ]
+                
+                # Try each method in sequence
+                for i, method in enumerate(selection_methods):
+                    if method is None:  # Skip this method if it's not applicable
+                        continue
+                        
+                    try:
+                        status, folder_info = method()
+                        if status == 'OK':
+                            if app.debug:
+                                logger.debug(f"Successfully selected folder for cleaning using method {i+1}: {folder}")
+                            success = True
+                            break
+                    except Exception as e:
+                        if app.debug:
+                            logger.debug(f"Error selecting folder for cleaning with method {i+1}: {str(e)}")
+                
+                # If all methods failed, use a dummy status
+                if not success:
+                    status = 'NO'
+                    folder_info = [b'0']
+                    
                 if status != 'OK':
                     results[folder] = {
                         "status": "error",
@@ -443,10 +721,18 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
                             folder_progress = (i + batch_size) / total_messages * 100
                             cleanup_progress[task_id]["current_folder_progress"] = folder_progress
                             
-                            # Update overall progress (10-95%)
+                            # Update overall progress (10-95%) with smoother increments
                             if total_messages_to_process > 0:
-                                overall_progress = 10 + (total_messages_processed / total_messages_to_process * 85)
-                                cleanup_progress[task_id]["overall_progress"] = min(95, overall_progress)
+                                # Calculate raw progress
+                                raw_progress = 10 + (total_messages_processed / total_messages_to_process * 85)
+                                
+                                # Get current progress
+                                current = cleanup_progress[task_id]["overall_progress"]
+                                
+                                # Smoothing: only update if progress increases by at least 0.5% 
+                                # or we're at the beginning/end stages
+                                if (raw_progress - current >= 0.5) or (current < 12) or (raw_progress > 90):
+                                    cleanup_progress[task_id]["overall_progress"] = min(95, raw_progress)
                             
                             # Update running totals for real-time stats
                             cleanup_progress[task_id]["total_emails_deleted"] = total_emails_deleted + total_deleted
@@ -542,4 +828,4 @@ def format_size(size_bytes):
 
 if __name__ == '__main__':
     # Make the app accessible on all network interfaces
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5050, debug=True)

@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MailWipe - Free Email Cleanup Tool</title>
+    <title>EmailWipe - Free Email Cleanup Tool</title>
     
     <!-- SEO Meta Tags -->
     <meta name="description" content="Free email cleanup tool that quickly removes old emails. No message count restrictions, works with Gmail, Outlook, Yahoo and other email providers.">
     <meta name="keywords" content="email cleanup, delete old emails, email management, free email tool, gmail cleaner, outlook cleaner">
     <meta name="author" content="Nikhil Talreja">
-    <meta property="og:title" content="MailWipe - Free Email Cleanup Tool">
+    <meta property="og:title" content="EmailWipe - Free Email Cleanup Tool">
     <meta property="og:description" content="Free email cleanup tool with no message count restrictions. Clean your inbox now!">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="MailWipe - Free Email Cleanup Tool">
+    <meta name="twitter:title" content="EmailWipe - Free Email Cleanup Tool">
     <meta name="twitter:description" content="Free email cleanup tool with no message count restrictions. Clean your inbox now!">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -837,18 +837,27 @@
 </head>
 <body>
     <div class="container">
+        {% if not demo_mode or request.path != '/demo-content' %}
         <header>
             <div class="logo-container">
                 <div class="free-badge">
                     <i class="fas fa-tag"></i> FREE
                 </div>
                 <div class="logo-border">
-                    <h1 class="logo">MailWipe</h1>
+                    <h1 class="logo">EmailWipe</h1>
                 </div>
             </div>
             <p class="tagline">Email cleaner that deletes in seconds, not hours</p>
+            
+            {% if demo_mode %}
+            <div class="demo-banner" style="background-color: rgba(255, 177, 66, 0.2); color: var(--warning); margin: 15px 0; padding: 10px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--warning); text-align: center;">
+                <strong>DEMO MODE</strong> - No actual emails will be deleted in this simulation
+            </div>
+            {% endif %}
         </header>
+        {% endif %}
 
+        {% if not demo_mode or request.path != '/demo-content' %}
         <div class="features">
             <div class="feature">
                 <i class="fas fa-shield-alt"></i>
@@ -871,6 +880,7 @@
                 <p>Bulk delete old emails with just a few clicks</p>
             </div>
         </div>
+        {% endif %}
 
         <div class="steps-indicator">
             <div class="step active" id="step-indicator-1">1</div>
@@ -886,18 +896,18 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="username">Email Address</label>
-                        <input type="email" id="username" placeholder="you@example.com" autocomplete="username" value="example@gmail.com">
+                        <input type="email" id="username" placeholder="you@example.com" autocomplete="username" {% if demo_mode %}value="example@gmail.com"{% endif %}>
                     </div>
                     
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" id="password" autocomplete="current-password" value="dummy-password">
+                        <input type="password" id="password" autocomplete="current-password" {% if demo_mode %}value="dummy-password"{% endif %}>
                         <p class="info-text">Your credentials are used only for the current session</p>
                     </div>
 
                     <div class="form-group">
                         <label for="imap_server">IMAP Server</label>
-                        <input type="text" id="imap_server" placeholder="imap.example.com" value="imap.gmail.com">
+                        <input type="text" id="imap_server" placeholder="imap.example.com" {% if demo_mode %}value="imap.gmail.com"{% endif %}>
                         <p class="info-text">Common servers: imap.gmail.com, outlook.office365.com, imap.mail.yahoo.com</p>
                     </div>
                 </div>
@@ -978,11 +988,27 @@
             </div>
         </div>
 
+        {% if not demo_mode or request.path != '/demo-content' %}
         <footer>
-            <div class="footer-logo">MailWipe</div>
+            <div class="footer-logo">EmailWipe</div>
             <p>Privacy-focused email cleanup tool • No email content is stored • <span id="current-year"></span></p>
             <p>Created by <a href="https://x.com/partymapper" target="_blank" style="color: var(--accent);">Nikhil Talreja</a> • <a href="https://instagram.com/nikhiltalrejasocial" target="_blank" style="color: var(--accent);">Instagram</a> • <a href="https://github.com/nikhiltalreja/mailwipe" target="_blank" style="color: var(--accent);">Report Bugs</a></p>
+            
+            {% if demo_mode %}
+            <p style="margin-top: 15px;">
+                <a href="/" style="color: var(--success); font-weight: bold;">
+                    <i class="fas fa-arrow-right"></i> Switch to Live Version
+                </a>
+            </p>
+            {% else %}
+            <p style="margin-top: 15px;">
+                <a href="/demo" style="color: var(--info); font-weight: bold;">
+                    <i class="fas fa-flask"></i> Try Demo Version
+                </a>
+            </p>
+            {% endif %}
         </footer>
+        {% endif %}
     </div>
 
     <script>
@@ -1096,11 +1122,16 @@
                 verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
             });
             
-            // Fallback for demo/development
-            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+            // Enable simulation for demo mode or local development
+            {% if demo_mode %}
+            simulateVerifyConnection(username, password, imapServer);
+            return; // Skip the API call
+            {% elif debug %}
+            if (window.location.hostname === 'localhost') {
                 simulateVerifyConnection(username, password, imapServer);
                 return; // Skip the API call
             }
+            {% endif %}
         }
         
         // This simulates verifying connection - only used for demo/development
@@ -1219,11 +1250,16 @@
                 `;
             });
             
-            // Fallback for demo/development
-            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+            // Enable simulation for demo mode or local development
+            {% if demo_mode %}
+            simulateLoadFolders();
+            return; // Skip the API call
+            {% elif debug %}
+            if (window.location.hostname === 'localhost') {
                 simulateLoadFolders();
                 return; // Skip the API call
             }
+            {% endif %}
         }
         
         // Simulate folder loading for demo/development
@@ -1275,10 +1311,13 @@
                     default: iconClass = 'fa-folder'; break;
                 }
                 
+                // Use displayName if available, otherwise fallback to name
+                const displayName = folder.displayName || folder.name;
+                
                 item.innerHTML = `
                     <div class="folder-header">
                         <i class="fas ${iconClass} folder-icon"></i>
-                        <div class="folder-name">${folder.name}</div>
+                        <div class="folder-name">${displayName}</div>
                     </div>
                     <div class="folder-stats">
                         <div class="stat">
@@ -1293,7 +1332,10 @@
                         </div>
                     </div>
                     <div class="checkbox-container">
-                        <input type="checkbox" id="folder-${index}" class="folder-checkbox" value="${folder.name}" ${folder.name === 'INBOX' || folder.name === 'Spam' ? 'checked' : ''}>
+                        <input type="checkbox" id="folder-${index}" class="folder-checkbox" 
+                               value="${folder.name}" 
+                               data-display-name="${displayName}"
+                               ${displayName === 'INBOX' || displayName === 'Spam' ? 'checked' : ''}>
                         <label for="folder-${index}">Include in cleanup</label>
                     </div>
                 `;
@@ -1325,10 +1367,15 @@
             const server = document.getElementById('imap_server').value;
             const cutoffDate = formatDate(document.getElementById('cutoff_date').value);
             
+            // Get both the actual folder names (for API) and display names (for UI)
             const selectedFolders = Array.from(document.querySelectorAll('.folder-checkbox:checked'))
                 .map(checkbox => checkbox.value);
             
-            const foldersList = selectedFolders.map(folder => `<span style="color: var(--accent);">${folder}</span>`).join(', ');
+            const selectedDisplayNames = Array.from(document.querySelectorAll('.folder-checkbox:checked'))
+                .map(checkbox => checkbox.dataset.displayName || checkbox.value);
+            
+            // Use the display names for the UI
+            const foldersList = selectedDisplayNames.map(folder => `<span style="color: var(--accent);">${folder}</span>`).join(', ');
             
             document.getElementById('review-summary').innerHTML = `
                 <div style="margin-bottom: 15px;">
@@ -1345,7 +1392,7 @@
                 </div>
             `;
             
-            // Update confirmation popup text
+            // Update confirmation popup text - use display names for user readability
             document.getElementById('confirm-text').innerHTML = `
                 Are you sure you want to permanently delete all emails before <strong>${cutoffDate}</strong> 
                 from the following folders: ${foldersList}?
@@ -1429,21 +1476,71 @@
             progressBar.style.width = `${currentProgress}%`;
             progressPercentage.textContent = `${currentProgress}%`;
             
-            // Progress simulation during network calls (when we don't have real progress info)
-            const progressInterval = setInterval(() => {
-                // Increase progress gradually but cap at 95% until we get real completion
-                currentProgress += 0.5;
-                if (currentProgress > 95) currentProgress = 95;
-                
-                progressBar.style.width = `${currentProgress}%`;
-                progressPercentage.textContent = `${Math.floor(currentProgress)}%`;
-            }, 300);
+            // Create a smoother progress animation
+            let targetProgress = 5; // Start with initial value
+            let currentDisplayProgress = 5;
+            let lastProgressUpdate = Date.now();
+            let pendingProgressUpdates = [];
             
-            // Fallback for demo/development
-            if (window.location.hostname === 'localhost' || true) { // Set to false for production
+            const progressInterval = setInterval(() => {
+                const now = Date.now();
+                
+                // Process any pending server progress updates
+                if (pendingProgressUpdates.length > 0) {
+                    // Only process one update per animation frame to smooth things out
+                    const newTarget = pendingProgressUpdates.shift();
+                    
+                    // If multiple updates came in, use the most recent one
+                    if (pendingProgressUpdates.length > 0) {
+                        pendingProgressUpdates = [pendingProgressUpdates[pendingProgressUpdates.length - 1]];
+                    }
+                    
+                    // Don't allow progress to go backwards
+                    if (newTarget > targetProgress) {
+                        targetProgress = newTarget;
+                    }
+                    
+                    lastProgressUpdate = now;
+                }
+                
+                // Smooth progress animation - increase gradually
+                if (currentDisplayProgress < targetProgress) {
+                    // Move toward target at a reasonable speed, faster when further away
+                    // but never too fast to cause visible jumps
+                    const distance = targetProgress - currentDisplayProgress;
+                    const step = Math.min(0.5, Math.max(0.1, distance / 30));
+                    currentDisplayProgress += step;
+                    
+                    // Don't exceed target
+                    if (currentDisplayProgress > targetProgress) {
+                        currentDisplayProgress = targetProgress;
+                    }
+                }
+                
+                // Increase target gradually if we don't have real progress data yet
+                // and it's been a while since the last server update
+                if (now - lastProgressUpdate > 2000 && targetProgress < 92) {
+                    targetProgress += 0.03; // Very slow automatic increase
+                }
+                
+                // Update the UI, only if the display percentage changes
+                const displayedPercent = Math.floor(currentDisplayProgress);
+                if (parseInt(progressPercentage.textContent) !== displayedPercent) {
+                    progressBar.style.width = `${currentDisplayProgress}%`;
+                    progressPercentage.textContent = `${displayedPercent}%`;
+                }
+            }, 30); // More frequent updates for smoother animation
+            
+            // Enable simulation for demo mode or local development
+            {% if demo_mode %}
+            simulateCleanEmails(selectedFolders);
+            return; // Skip the API call
+            {% elif debug %}
+            if (window.location.hostname === 'localhost') {
                 simulateCleanEmails(selectedFolders);
                 return; // Skip the API call
             }
+            {% endif %}
             
             // Make API call to clean emails (asynchronously with progress tracking)
             fetch('/clean', {
@@ -1471,9 +1568,8 @@
                                 if (progressData.status === 'success') {
                                     const progress = progressData.progress;
                                     
-                                    // Update the progress bar
-                                    progressBar.style.width = `${progress.overall_progress}%`;
-                                    progressPercentage.textContent = `${Math.floor(progress.overall_progress)}%`;
+                                    // Queue the progress update to be processed by the animation loop
+                                    pendingProgressUpdates.push(progress.overall_progress);
                                     
                                     // Update status texts
                                     progressStatus.textContent = `${Math.floor(progress.overall_progress)}% complete - ${progress.folders_completed} of ${progress.total_folders} folders processed`;
@@ -1484,21 +1580,30 @@
                                         clearInterval(pollProgressInterval);
                                         clearInterval(progressInterval);
                                         
-                                        // Set to 100% before showing results
-                                        progressBar.style.width = '100%';
-                                        progressPercentage.textContent = '100%';
+                                        // Smoothly transition to 100%
+                                        targetProgress = 100;
                                         progressStatus.textContent = 'Cleanup completed!';
                                         currentFolderStatus.textContent = 'Finalizing...';
                                         
-                                        // Show final results after a short delay
-                                        setTimeout(() => {
-                                            displayResults(
-                                                progress.results, 
-                                                progress.total_emails_deleted, 
-                                                progress.total_size_deleted || 0, 
-                                                progress.time_taken || '0 seconds'
-                                            );
-                                        }, 800);
+                                        // Wait for the progress bar to reach close to 100% before showing results
+                                        const completeCheckInterval = setInterval(() => {
+                                            if (currentDisplayProgress >= 99) {
+                                                clearInterval(completeCheckInterval);
+                                                // Force to exactly 100%
+                                                progressBar.style.width = '100%';
+                                                progressPercentage.textContent = '100%';
+                                                
+                                                // Show final results after a short delay
+                                                setTimeout(() => {
+                                                    displayResults(
+                                                        progress.results, 
+                                                        progress.total_emails_deleted, 
+                                                        progress.total_size_deleted || 0, 
+                                                        progress.time_taken || '0 seconds'
+                                                    );
+                                                }, 800);
+                                            }
+                                        }, 50);
                                     }
                                     
                                     // If there was an error, show it
@@ -1506,15 +1611,21 @@
                                         clearInterval(pollProgressInterval);
                                         clearInterval(progressInterval);
                                         
-                                        resultsElement.innerHTML = `
-                                            <div class="connection-status error" style="margin: 20px 0;">
-                                                <i class="fas fa-exclamation-circle"></i> 
-                                                Error cleaning emails: ${progress.error}
-                                            </div>
-                                            <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
-                                                <i class="fas fa-arrow-left"></i> Go Back
-                                            </button>
-                                        `;
+                                        // Smoothly ensure progress bar is at a reasonable point before showing error
+                                        targetProgress = Math.max(targetProgress, 15); // At least show some progress
+                                        
+                                        // Wait a moment to show some progress before displaying error
+                                        setTimeout(() => {
+                                            resultsElement.innerHTML = `
+                                                <div class="connection-status error" style="margin: 20px 0;">
+                                                    <i class="fas fa-exclamation-circle"></i> 
+                                                    Error cleaning emails: ${progress.error}
+                                                </div>
+                                                <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
+                                                    <i class="fas fa-arrow-left"></i> Go Back
+                                                </button>
+                                            `;
+                                        }, 500); // Short delay to let progress bar animate
                                     }
                                 } else {
                                     // Progress endpoint error
@@ -1528,34 +1639,47 @@
                     }, 1000);
                 } else {
                     // No task ID or error
+                    // Allow the progress bar to animate for a bit first
+                    targetProgress = Math.max(targetProgress, 15); // At least show some progress
+                    
+                    // Wait a moment before showing error
+                    setTimeout(() => {
+                        clearInterval(progressInterval);
+                        
+                        // Show error
+                        resultsElement.innerHTML = `
+                            <div class="connection-status error" style="margin: 20px 0;">
+                                <i class="fas fa-exclamation-circle"></i> 
+                                Error cleaning emails: ${data.message || 'Unknown error'}
+                            </div>
+                            <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
+                                <i class="fas fa-arrow-left"></i> Go Back
+                            </button>
+                        `;
+                    }, 500); // Short delay to let progress bar animate
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                
+                // Allow the progress bar to animate for a bit first
+                targetProgress = Math.max(targetProgress, 15); // At least show some progress
+                
+                // Wait a moment before showing error
+                setTimeout(() => {
                     clearInterval(progressInterval);
                     
-                    // Show error
+                    // Show error message
                     resultsElement.innerHTML = `
                         <div class="connection-status error" style="margin: 20px 0;">
                             <i class="fas fa-exclamation-circle"></i> 
-                            Error cleaning emails: ${data.message || 'Unknown error'}
+                            Network error while cleaning emails. Please check your connection.
                         </div>
                         <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
                             <i class="fas fa-arrow-left"></i> Go Back
                         </button>
                     `;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                clearInterval(progressInterval);
-                
-                // Show error message
-                resultsElement.innerHTML = `
-                    <div class="connection-status error" style="margin: 20px 0;">
-                        <i class="fas fa-exclamation-circle"></i> 
-                        Network error while cleaning emails. Please check your connection.
-                    </div>
-                    <button onclick="goToStep(2)" class="btn-secondary" style="max-width: 200px; margin: 0 auto;">
-                        <i class="fas fa-arrow-left"></i> Go Back
-                    </button>
-                `;
+                }, 500); // Short delay to let progress bar animate
             });
         }
         
@@ -1719,7 +1843,15 @@
             let html = `<h3><i class="fas fa-check-circle"></i> Cleanup Complete</h3>`;
             html += `<div id="results-grid">`;
             
+            // Get a mapping of original folder names to display names for better rendering
+            const folderDisplayMap = {};
+            document.querySelectorAll('.folder-checkbox').forEach(checkbox => {
+                folderDisplayMap[checkbox.value] = checkbox.dataset.displayName || checkbox.value;
+            });
+            
             Object.entries(results).forEach(([folder, result], index) => {
+                // Use display name if available from our mapping
+                const displayFolderName = folderDisplayMap[folder] || folder;
                 // Handle both new API format and simulator format
                 const isSuccess = typeof result === 'object' 
                     ? result.status === 'success' 
@@ -1749,7 +1881,7 @@
                 html += `
                     <div class="result-card ${isSuccess ? '' : 'error'}" style="animation-delay: ${0.1 * index}s;">
                         <div class="folder-name">
-                            <i class="fas ${iconClass} folder-icon"></i> ${folder}
+                            <i class="fas ${iconClass} folder-icon"></i> ${displayFolderName}
                         </div>
                         <div class="count">${count.toLocaleString()}</div>
                         <div class="status">
