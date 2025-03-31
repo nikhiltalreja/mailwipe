@@ -68,6 +68,7 @@ else:
 import imaplib
 import ssl
 import base64  # Added for XOAUTH2 authentication
+import sys  # Moved to top for logging Python version
 from datetime import datetime, timedelta
 import email.utils
 import logging
@@ -78,7 +79,6 @@ import re
 import uuid
 import threading
 import urllib.parse
-import sys
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -425,7 +425,19 @@ def logout():
 def verify_connection():
     """Verify IMAP server connection and credentials"""
     start_time = time.time()
-    data = request.json
+    
+    # Add a safeguard timeout for the entire route
+    max_execution_time = 45  # seconds
+    
+    # Get request data
+    try:
+        data = request.json
+    except Exception as e:
+        logger.error(f"Error parsing request JSON: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Invalid request format. Please ensure you're sending valid JSON."
+        })
     
     try:
         # Log full request data for debugging (excluding passwords)
@@ -740,23 +752,34 @@ def verify_google_token(access_token, expected_email=None):
         token_url = f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={access_token}"
         req = urllib.request.Request(token_url)
         
-        # Set a short timeout for this request
-        response = urllib.request.urlopen(req, timeout=10)
-        token_data = json.loads(response.read().decode('utf-8'))
-        
-        # Check if the token is valid
-        if 'error_description' in token_data:
-            logger.warning(f"Token validation failed: {token_data['error_description']}")
-            return False
-        
-        # If expected_email is provided, verify it matches
-        if expected_email and 'email' in token_data:
-            if token_data['email'].lower() != expected_email.lower():
-                logger.warning(f"Token email mismatch: {token_data['email']} != {expected_email}")
+        try:
+            # Set a short timeout for this request
+            response = urllib.request.urlopen(req, timeout=10)
+            token_data = json.loads(response.read().decode('utf-8'))
+            
+            # Check if the token is valid
+            if 'error_description' in token_data:
+                logger.warning(f"Token validation failed: {token_data['error_description']}")
                 return False
             
-        logger.info(f"Google token successfully verified for {token_data.get('email', 'unknown user')}")
-        return True
+            # If expected_email is provided, verify it matches
+            if expected_email and 'email' in token_data:
+                if token_data['email'].lower() != expected_email.lower():
+                    logger.warning(f"Token email mismatch: {token_data['email']} != {expected_email}")
+                    return False
+                
+            logger.info(f"Google token successfully verified for {token_data.get('email', 'unknown user')}")
+            return True
+            
+        except urllib.error.HTTPError as http_err:
+            logger.error(f"HTTP error during token verification: {http_err.code} - {http_err.reason}")
+            return False
+        except urllib.error.URLError as url_err:
+            logger.error(f"URL error during token verification: {url_err.reason}")
+            return False
+        except socket.timeout:
+            logger.error("Timeout while connecting to Google token verification service")
+            return False
     
     except Exception as e:
         logger.error(f"Error verifying Google token: {str(e)}", exc_info=True)
