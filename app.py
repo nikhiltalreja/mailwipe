@@ -6,27 +6,65 @@ import os
 import secrets
 import requests
 
-# Import OAuth configuration
-try:
-    from oauth_config import AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_CALLBACK_URL, DEFAULT_IMAP_SERVERS
-except ImportError:
-    # For development/testing without real credentials
-    AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "your-tenant.auth0.com")
-    AUTH0_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID", "your-client-id")
-    AUTH0_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET", "your-client-secret")
-    AUTH0_CALLBACK_URL = os.environ.get("AUTH0_CALLBACK_URL", "http://localhost:5050/auth/callback")
-    
-    # Default IMAP servers for common email providers
-    DEFAULT_IMAP_SERVERS = {
-        "gmail.com": "imap.gmail.com",
-        "googlemail.com": "imap.gmail.com",
-        "outlook.com": "outlook.office365.com",
-        "hotmail.com": "outlook.office365.com",
-        "live.com": "outlook.office365.com",
-        "yahoo.com": "imap.mail.yahoo.com",
-        "ymail.com": "imap.mail.yahoo.com",
-        "aol.com": "imap.aol.com"
-    }
+# Import OAuth configuration - prioritize environment variables over config file
+# This ensures Railway can override settings
+AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", None)
+AUTH0_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID", None)
+AUTH0_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET", None)
+AUTH0_CALLBACK_URL = os.environ.get("AUTH0_CALLBACK_URL", None)
+
+# If environment variables are not set, try to import from config file
+if not all([AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_CALLBACK_URL]):
+    try:
+        from oauth_config import AUTH0_DOMAIN as config_domain, AUTH0_CLIENT_ID as config_client_id, \
+                                AUTH0_CLIENT_SECRET as config_secret, AUTH0_CALLBACK_URL as config_callback, \
+                                DEFAULT_IMAP_SERVERS
+        
+        # Only use config values if env vars are not set
+        AUTH0_DOMAIN = AUTH0_DOMAIN or config_domain
+        AUTH0_CLIENT_ID = AUTH0_CLIENT_ID or config_client_id
+        AUTH0_CLIENT_SECRET = AUTH0_CLIENT_SECRET or config_secret
+        AUTH0_CALLBACK_URL = AUTH0_CALLBACK_URL or config_callback
+        
+    except ImportError:
+        # Fallback defaults if neither env vars nor config file are available
+        if not AUTH0_DOMAIN:
+            AUTH0_DOMAIN = "your-tenant.auth0.com"
+        if not AUTH0_CLIENT_ID:
+            AUTH0_CLIENT_ID = "your-client-id"
+        if not AUTH0_CLIENT_SECRET:
+            AUTH0_CLIENT_SECRET = "your-client-secret"
+        if not AUTH0_CALLBACK_URL:
+            # Auto-detect callback URL based on HOST header in production
+            AUTH0_CALLBACK_URL = "http://localhost:5050/auth/callback"
+        
+        # Default IMAP servers if not imported
+        DEFAULT_IMAP_SERVERS = {
+            "gmail.com": "imap.gmail.com",
+            "googlemail.com": "imap.gmail.com",
+            "outlook.com": "outlook.office365.com",
+            "hotmail.com": "outlook.office365.com",
+            "live.com": "outlook.office365.com",
+            "yahoo.com": "imap.mail.yahoo.com",
+            "ymail.com": "imap.mail.yahoo.com",
+            "aol.com": "imap.aol.com"
+        }
+else:
+    # If we're using env vars, ensure we have DEFAULT_IMAP_SERVERS
+    try:
+        from oauth_config import DEFAULT_IMAP_SERVERS
+    except ImportError:
+        # Default IMAP servers if not imported
+        DEFAULT_IMAP_SERVERS = {
+            "gmail.com": "imap.gmail.com",
+            "googlemail.com": "imap.gmail.com",
+            "outlook.com": "outlook.office365.com",
+            "hotmail.com": "outlook.office365.com",
+            "live.com": "outlook.office365.com",
+            "yahoo.com": "imap.mail.yahoo.com",
+            "ymail.com": "imap.mail.yahoo.com",
+            "aol.com": "imap.aol.com"
+        }
 import imaplib
 import ssl
 from datetime import datetime, timedelta
@@ -38,6 +76,7 @@ import re
 import uuid
 import threading
 import urllib.parse
+import sys
 from collections import defaultdict
 
 app = Flask(__name__)
@@ -64,9 +103,28 @@ auth0 = oauth.register(
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, 
+log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+numeric_level = getattr(logging, log_level, logging.INFO)
+
+logging.basicConfig(level=numeric_level, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Log startup information
+logger.info(f"Starting EmailWipe, Python version: {sys.version}")
+logger.info(f"Using Auth0 domain: {AUTH0_DOMAIN}")
+logger.info(f"Using callback URL: {AUTH0_CALLBACK_URL}")
+
+# Add handler for all uncaught exceptions to log them
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        # Don't log keyboard interrupt
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
 
 # Default configuration
 DEFAULT_CUTOFF_DATE = '01-Jan-2021'
@@ -91,6 +149,16 @@ def index():
 def demo():
     # Redirect to main page with demo parameter
     return redirect('/?demo=true')
+
+@app.route('/health')
+def health_check():
+    """Simple health check endpoint for monitoring"""
+    return jsonify({
+        "status": "ok",
+        "version": "1.0",
+        "timestamp": datetime.now().isoformat(),
+        "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
+    })
 
 # ---- Auth0 OAuth Routes ----
 
@@ -235,11 +303,15 @@ def logout():
     # Clear session
     session.clear()
     
+    # Determine the root URL from the callback URL
+    root_url = AUTH0_CALLBACK_URL.split('/auth/callback')[0] if '/auth/callback' in AUTH0_CALLBACK_URL else 'https://web-production-99c5.up.railway.app/'
+    
     # Redirect to Auth0 logout endpoint
     params = {
-        'returnTo': 'https://web-production-99c5.up.railway.app/',
+        'returnTo': root_url,
         'client_id': AUTH0_CLIENT_ID
     }
+    logger.info(f"Logout redirecting to: {root_url}")
     return redirect(auth0.api_base_url + '/v2/logout?' + urllib.parse.urlencode(params))
 
 @app.route('/verify', methods=['POST'])
@@ -1215,5 +1287,11 @@ def format_size(size_bytes):
         return f"{size_bytes/(1024*1024*1024):.1f} GB"
 
 if __name__ == '__main__':
+    # For Railway and other PaaS platforms, get port from environment
+    port = int(os.environ.get('PORT', 5050))
+    
+    # Enable debug mode only locally, not in production
+    debug_mode = os.environ.get('RAILWAY_ENVIRONMENT', None) is None
+    
     # Make the app accessible on all network interfaces
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
