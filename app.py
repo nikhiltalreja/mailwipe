@@ -67,6 +67,7 @@ else:
         }
 import imaplib
 import ssl
+import base64  # Added for XOAUTH2 authentication
 from datetime import datetime, timedelta
 import email.utils
 import logging
@@ -1622,9 +1623,7 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
 # Alternative approach for Gmail authentication that relies less on the IMAP library internals
 def gmail_oauth2_login(username, access_token):
     """Create a new Gmail IMAP connection with OAuth2 authentication"""
-    import base64
-    import imaplib
-    import ssl
+    # Note: base64, imaplib, ssl are imported at the module level
     import signal
     
     # Make sure username is a string
@@ -1711,7 +1710,7 @@ def gmail_oauth2_login(username, access_token):
 # Helper function to perform XOAUTH2 authentication with retries
 def authenticate_oauth2(mail, username, access_token, max_retries=1):
     """Authenticate with IMAP server using XOAUTH2 with Gmail-specific handling"""
-    import base64
+    # Note: base64 is imported at the module level
     import time
     import signal
     import imaplib
