@@ -966,17 +966,45 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Sign in Method</label>
-                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                            <button type="button" id="oauth-toggle-button" onclick="toggleAuthMethod('password')" style="flex: 1; background: var(--accent-light);">
-                                Password Login
-                            </button>
-                            <button type="button" id="auth0-button" onclick="window.location.href='/auth/login'" style="flex: 1; background: #635dff;">
-                                <i class="fas fa-lock"></i> Sign in with Auth0
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                            <!-- Social Logins -->
+                            <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                                <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" style="flex: 1; background: #4285F4;">
+                                    <i class="fab fa-google"></i> Sign in with Gmail
+                                </button>
+                                <button type="button" id="auth0-button" onclick="window.location.href='/auth/login'" style="flex: 1; background: #635dff;">
+                                    <i class="fas fa-lock"></i> Sign in with Email
+                                </button>
+                            </div>
+                            
+                            <!-- Separator -->
+                            <div style="text-align: center; margin: 10px 0; color: var(--text-muted);">
+                                <span style="background: var(--bg-card); padding: 0 10px;">OR</span>
+                                <hr style="margin-top: -10px; border-color: var(--text-muted); opacity: 0.3;">
+                            </div>
+                            
+                            <!-- Password Login Toggle -->
+                            <button type="button" id="oauth-toggle-button" onclick="toggleAuthMethod('password')" style="background: var(--accent-light);">
+                                <i class="fas fa-key"></i> Use Password Login
                             </button>
                         </div>
                     </div>
 
                     <div id="password-auth-section">
+                        <div style="background-color: rgba(52, 152, 219, 0.1); color: var(--info); margin: 0 0 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--info);">
+                            <div style="display: flex; align-items: center;">
+                                <i class="fas fa-info-circle" style="margin-right: 10px; font-size: 1.2rem;"></i>
+                                <span>For Gmail users: 
+                                    <a href="https://support.google.com/mail/answer/185833" target="_blank" style="color: var(--info); text-decoration: underline;">
+                                        Generate an app password here
+                                    </a>
+                                </span>
+                            </div>
+                            <div style="font-size: 0.9rem; margin-top: 8px;">
+                                For most email providers, you'll need to create an app-specific password or enable "Less secure apps"
+                            </div>
+                        </div>
+                        
                         <div class="form-group">
                             <label for="username">Email Address</label>
                             <input type="email" id="username" placeholder="you@example.com" autocomplete="username" {% if demo_mode %}value="example@gmail.com"{% endif %}>
@@ -999,6 +1027,9 @@
                     <div id="oauth-success" style="display: none; background-color: rgba(78, 204, 163, 0.1); color: var(--success); margin: 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--success); text-align: center;">
                         <i class="fas fa-check-circle"></i> Successfully signed in with <span id="oauth-provider"></span>
                         <div style="font-size: 0.9rem; margin-top: 5px;" id="oauth-email"></div>
+                        <div style="font-size: 0.9rem; margin-top: 8px; color: var(--text-secondary);">
+                            We'll safely access your email to clean it using secure OAuth. No passwords are stored.
+                        </div>
                         <a href="/logout" style="display: inline-block; margin-top: 8px; color: var(--accent); font-size: 0.9rem;">
                             <i class="fas fa-sign-out-alt"></i> Sign out
                         </a>

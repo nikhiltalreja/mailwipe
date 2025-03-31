@@ -110,12 +110,22 @@ def login():
     # Generate a nonce to prevent CSRF attacks
     session['nonce'] = secrets.token_urlsafe(16)
     
+    # Get the connection parameter if provided
+    connection = request.args.get('connection')
+    
+    # Parameters for Auth0
+    params = {
+        'redirect_uri': AUTH0_CALLBACK_URL,
+        'audience': f'https://{AUTH0_DOMAIN}/userinfo',
+        'nonce': session['nonce']
+    }
+    
+    # If a specific connection was requested (like 'google-oauth2')
+    if connection:
+        params['connection'] = connection
+    
     # Redirect to Auth0 login page
-    return auth0.authorize_redirect(
-        redirect_uri=AUTH0_CALLBACK_URL,
-        audience=f'https://{AUTH0_DOMAIN}/userinfo',
-        nonce=session['nonce']
-    )
+    return auth0.authorize_redirect(**params)
 
 @app.route('/auth/callback')
 def callback():
