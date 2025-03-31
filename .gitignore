@@ -39,4 +39,4 @@ Thumbs.db
 
 # Application specific
 *.log
-.env
+.envoauth_config.py

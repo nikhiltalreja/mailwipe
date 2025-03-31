@@ -965,20 +965,46 @@
             <div class="step-content active" id="step-1">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="username">Email Address</label>
-                        <input type="email" id="username" placeholder="you@example.com" autocomplete="username" {% if demo_mode %}value="example@gmail.com"{% endif %}>
+                        <label>Sign in Method</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <button type="button" id="oauth-toggle-button" onclick="toggleAuthMethod('password')" style="flex: 1; background: var(--accent-light);">
+                                Password Login
+                            </button>
+                            <button type="button" id="google-auth-button" onclick="window.location.href='/auth/google'" style="flex: 1; background: #4285F4;">
+                                <i class="fab fa-google"></i> Sign in with Google
+                            </button>
+                            <button type="button" id="microsoft-auth-button" onclick="window.location.href='/auth/microsoft'" style="flex: 1; background: #0078D4;">
+                                <i class="fab fa-microsoft"></i> Sign in with Microsoft
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" autocomplete="current-password" {% if demo_mode %}value="dummy-password"{% endif %}>
-                        <p class="info-text">Your credentials are used only for the current session</p>
+
+                    <div id="password-auth-section">
+                        <div class="form-group">
+                            <label for="username">Email Address</label>
+                            <input type="email" id="username" placeholder="you@example.com" autocomplete="username" {% if demo_mode %}value="example@gmail.com"{% endif %}>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" autocomplete="current-password" {% if demo_mode %}value="dummy-password"{% endif %}>
+                            <p class="info-text">Your credentials are used only for the current session</p>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label for="imap_server">IMAP Server</label>
                         <input type="text" id="imap_server" placeholder="imap.example.com" {% if demo_mode %}value="imap.gmail.com"{% endif %}>
                         <p class="info-text">Common servers: imap.gmail.com, outlook.office365.com, imap.mail.yahoo.com</p>
+                    </div>
+                    
+                    <!-- OAuth Success Message -->
+                    <div id="oauth-success" style="display: none; background-color: rgba(78, 204, 163, 0.1); color: var(--success); margin: 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--success); text-align: center;">
+                        <i class="fas fa-check-circle"></i> Successfully signed in with <span id="oauth-provider"></span>
+                        <div style="font-size: 0.9rem; margin-top: 5px;" id="oauth-email"></div>
+                        <a href="/logout" style="display: inline-block; margin-top: 8px; color: var(--accent); font-size: 0.9rem;">
+                            <i class="fas fa-sign-out-alt"></i> Sign out
+                        </a>
                     </div>
                 </div>
                 
@@ -1080,6 +1106,12 @@
     </div>
 
     <script>
+        // Global variables for authentication
+        let authMethod = 'password'; // Default auth method
+        let oauthProvider = null;
+        let oauthSuccess = false;
+        let userEmail = '';
+        
         // Pre-load the form with defaults on load
         window.onload = function() {
             // Set the cutoff date to 6 months ago if not already set
@@ -1091,7 +1123,63 @@
             
             // Set current year in footer
             document.getElementById('current-year').textContent = new Date().getFullYear();
+            
+            // Check for OAuth redirect success
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('oauth') && urlParams.get('oauth') === 'success') {
+                oauthSuccess = true;
+                oauthProvider = urlParams.get('provider');
+                
+                // Update UI for OAuth success
+                authMethod = 'oauth';
+                document.getElementById('oauth-toggle-button').textContent = 'Using OAuth';
+                document.getElementById('oauth-toggle-button').style.background = 'var(--success)';
+                document.getElementById('password-auth-section').style.display = 'none';
+                
+                // Show OAuth success message
+                const oauthSuccess = document.getElementById('oauth-success');
+                oauthSuccess.style.display = 'block';
+                
+                // Set provider name (capitalize first letter)
+                const providerName = oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1);
+                document.getElementById('oauth-provider').textContent = providerName;
+                
+                // Set server automatically based on provider
+                if (oauthProvider === 'google') {
+                    document.getElementById('imap_server').value = 'imap.gmail.com';
+                } else if (oauthProvider === 'microsoft') {
+                    document.getElementById('imap_server').value = 'outlook.office365.com';
+                }
+                
+                // Get user info via fetch to show in the UI
+                fetch('/user_info')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            userEmail = data.email;
+                            document.getElementById('oauth-email').textContent = data.email;
+                        }
+                    })
+                    .catch(error => console.error('Error fetching user info:', error));
+            }
         };
+        
+        // Toggle between password and OAuth authentication
+        function toggleAuthMethod(method) {
+            authMethod = method;
+            
+            if (method === 'password') {
+                document.getElementById('password-auth-section').style.display = 'block';
+                document.getElementById('oauth-success').style.display = 'none';
+                document.getElementById('oauth-toggle-button').textContent = 'Password Login';
+                document.getElementById('oauth-toggle-button').style.background = 'var(--accent-light)';
+            } else {
+                document.getElementById('password-auth-section').style.display = 'none';
+                document.getElementById('oauth-success').style.display = 'block';
+                document.getElementById('oauth-toggle-button').textContent = 'Using OAuth';
+                document.getElementById('oauth-toggle-button').style.background = 'var(--success)';
+            }
+        }
         
         // Navigation between steps
         function goToStep(step) {
@@ -1135,13 +1223,40 @@
         
         // Verify the connection to the IMAP server
         function verifyConnection() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
             const imapServer = document.getElementById('imap_server').value;
             
-            // Validate inputs
-            if (!username || !password || !imapServer) {
-                showConnectionStatus('error', 'Please fill in all fields');
+            // Build request data based on auth method
+            const requestData = {
+                imap_server: imapServer
+            };
+            
+            if (authMethod === 'oauth') {
+                // For OAuth, we need the provider
+                if (!oauthSuccess || !oauthProvider) {
+                    showConnectionStatus('error', 'OAuth authentication not completed');
+                    return;
+                }
+                
+                requestData.auth_method = 'oauth';
+                requestData.provider = oauthProvider;
+            } else {
+                // For password auth, we need username and password
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                if (!username || !password) {
+                    showConnectionStatus('error', 'Please fill in all fields');
+                    return;
+                }
+                
+                requestData.auth_method = 'password';
+                requestData.username = username;
+                requestData.password = password;
+            }
+            
+            // Validate IMAP server
+            if (!imapServer) {
+                showConnectionStatus('error', 'IMAP server is required');
                 return;
             }
             
@@ -1156,11 +1271,7 @@
             fetch('/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    username, 
-                    password,
-                    imap_server: imapServer
-                })
+                body: JSON.stringify(requestData)
             })
             .then(response => response.json())
             .then(data => {
@@ -1245,9 +1356,31 @@
         
         // Load folders with statistics
         function loadFolders() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
             const imapServer = document.getElementById('imap_server').value;
+            
+            // Build request data based on auth method
+            const requestData = {
+                imap_server: imapServer
+            };
+            
+            if (authMethod === 'oauth') {
+                // For OAuth, we need the provider
+                if (!oauthSuccess || !oauthProvider) {
+                    showConnectionStatus('error', 'OAuth authentication not completed');
+                    return;
+                }
+                
+                requestData.auth_method = 'oauth';
+                requestData.provider = oauthProvider;
+            } else {
+                // For password auth, we need username and password
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                requestData.auth_method = 'password';
+                requestData.username = username;
+                requestData.password = password;
+            }
             
             const foldersLoading = document.getElementById('folders-loading');
             const foldersContainer = document.getElementById('folders-container');
@@ -1269,11 +1402,7 @@
             fetch('/get_folders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    username, 
-                    password,
-                    imap_server: imapServer
-                })
+                body: JSON.stringify(requestData)
             })
             .then(response => response.json())
             .then(data => {
@@ -1431,7 +1560,13 @@
         
         // Generate review summary for step 3
         function generateReviewSummary() {
-            const email = document.getElementById('username').value;
+            let email;
+            if (authMethod === 'oauth') {
+                email = userEmail || `<span style="color: var(--accent);">Authenticated with ${oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1)}</span>`;
+            } else {
+                email = document.getElementById('username').value;
+            }
+            
             const server = document.getElementById('imap_server').value;
             const cutoffDate = formatDate(document.getElementById('cutoff_date').value);
             
@@ -1498,8 +1633,6 @@
             // Hide confirmation popup
             hideConfirmDialog();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
             const imapServer = document.getElementById('imap_server').value;
             const cutoffDateInput = document.getElementById('cutoff_date').value;
             
@@ -1508,6 +1641,32 @@
             
             // Format the date for IMAP
             const cutoff_date = formatDate(cutoffDateInput) || '01-Jan-2021';
+            
+            // Build request data based on auth method
+            const requestData = {
+                imap_server: imapServer,
+                folders: selectedFolders,
+                cutoff_date
+            };
+            
+            if (authMethod === 'oauth') {
+                // For OAuth, we need the provider
+                if (!oauthSuccess || !oauthProvider) {
+                    alert('OAuth authentication not completed');
+                    return;
+                }
+                
+                requestData.auth_method = 'oauth';
+                requestData.provider = oauthProvider;
+            } else {
+                // For password auth, we need username and password
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                requestData.auth_method = 'password';
+                requestData.username = username;
+                requestData.password = password;
+            }
             
             // Show results section with progress tracker
             const resultsElement = document.getElementById('results');
@@ -1639,13 +1798,7 @@
             fetch('/clean', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    username, 
-                    password,
-                    imap_server: imapServer,
-                    folders: selectedFolders,
-                    cutoff_date
-                })
+                body: JSON.stringify(requestData)
             })
             .then(response => response.json())
             .then(data => {
