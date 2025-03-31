@@ -165,7 +165,7 @@ def logout():
     
     # Redirect to Auth0 logout endpoint
     params = {
-        'returnTo': url_for('index', _external=True),
+        'returnTo': 'https://web-production-99c5.up.railway.app/',
         'client_id': AUTH0_CLIENT_ID
     }
     return redirect(auth0.api_base_url + '/v2/logout?' + urllib.parse.urlencode(params))

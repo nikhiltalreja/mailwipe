@@ -1,10 +1,10 @@
 # OAuth Configuration for EmailWipe
 
 # Auth0 Configuration - Free tier supports 7,000 MAU (Monthly Active Users)
-AUTH0_DOMAIN = "YOUR_AUTH0_DOMAIN.auth0.com"
-AUTH0_CLIENT_ID = "YOUR_AUTH0_CLIENT_ID" 
-AUTH0_CLIENT_SECRET = "YOUR_AUTH0_CLIENT_SECRET"
-AUTH0_CALLBACK_URL = "https://emailwipe.com/auth/callback"
+AUTH0_DOMAIN = "dev-khykkdf6d4gtrz1y.us.auth0.com"
+AUTH0_CLIENT_ID = "eNPThhTMZmjmc3z4iwdxSzf24TaDItsc" 
+AUTH0_CLIENT_SECRET = "rcGFLKlXmkj6qH5iScGYwQSx-DNW9NSyrNMv1MPFhmZPwD_EzVDwjc3MhA7kJw7u"
+AUTH0_CALLBACK_URL = "https://web-production-99c5.up.railway.app/auth/callback"
 
 # Default IMAP servers for providers
 DEFAULT_IMAP_SERVERS = {
