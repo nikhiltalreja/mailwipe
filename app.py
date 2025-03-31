@@ -132,8 +132,8 @@ class CircularLogBuffer(logging.Handler):
             self.buffer.pop(0)
 
 # Create and add the buffer handler
-log_buffer = CircularLogBuffer(capacity=100)
-log_buffer.setLevel(logging.WARNING)  # Only capture WARNING and above to keep buffer small
+log_buffer = CircularLogBuffer(capacity=200)
+log_buffer.setLevel(logging.INFO)  # Capture INFO and above to see more details
 logging.getLogger().addHandler(log_buffer)
 
 # Log startup information
@@ -189,13 +189,20 @@ def health_check():
 @app.route('/debug/logs')
 def view_logs():
     """View recent logs for debugging (no authentication for simplicity)"""
-    # Get the 50 most recent logs
-    logs = log_buffer.buffer[-50:] if log_buffer.buffer else []
+    # Get the most recent logs (all logs if format=full is specified)
+    show_full = request.args.get('format') == 'full'
+    max_logs = len(log_buffer.buffer) if show_full else 75
+    logs = log_buffer.buffer[-max_logs:] if log_buffer.buffer else []
     
     # Check if the logs should be returned as JSON or HTML
     if request.args.get('format') == 'json':
         return jsonify(logs)
         
+    # Get filter parameter
+    level_filter = request.args.get('level', '').upper()
+    if level_filter and level_filter in ['INFO', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']:
+        logs = [log for log in logs if log['level'] == level_filter]
+    
     # Generate simple HTML directly without a template
     log_html = '<html><head><title>EmailWipe Debug Logs</title><style>'
     log_html += 'body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }'
@@ -204,13 +211,37 @@ def view_logs():
     log_html += '.ERROR { background: rgba(255,87,87,0.2); border-left: 4px solid #ff5757; }'
     log_html += '.WARNING { background: rgba(255,177,66,0.2); border-left: 4px solid #ffb142; }'
     log_html += '.INFO { background: rgba(52,152,219,0.1); border-left: 4px solid #3498db; }'
+    log_html += '.DEBUG { background: rgba(78, 204, 163,0.1); border-left: 4px solid #4ecca3; }'
+    log_html += '.CRITICAL { background: rgba(142, 68, 173,0.2); border-left: 4px solid #8e44ad; }'
     log_html += '.timestamp { color: #a0a0a0; font-size: 0.9em; }'
     log_html += '.message { white-space: pre-wrap; word-break: break-word; }'
-    log_html += '.refresh { background: #e94560; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; }'
+    log_html += '.refresh { background: #e94560; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }'
+    log_html += '.filter { background: #16213e; color: white; padding: 8px 15px; border: 1px solid #3498db; border-radius: 4px; cursor: pointer; margin-right: 5px; }'
+    log_html += '.filter.active { background: #3498db; }'
+    log_html += '.controls { margin: 15px 0; }'
     log_html += '</style></head><body>'
     log_html += '<h1>EmailWipe Debug Logs</h1>'
+    
+    # Add controls
+    log_html += '<div class="controls">'
     log_html += '<button class="refresh" onclick="location.reload()">Refresh Logs</button>'
-    log_html += '<p>Showing the last ' + str(len(logs)) + ' log entries (WARNING level and above)</p>'
+    
+    # Add level filters
+    levels = ['INFO', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']
+    for level in levels:
+        active_class = ' active' if level_filter == level else ''
+        log_html += f'<a href="?level={level}" class="filter{active_class}">{level}</a>'
+    
+    # Add all filter to reset
+    log_html += '<a href="?" class="filter' + ('' if level_filter else ' active') + '">ALL</a>'
+    
+    # Add link to full logs
+    if not show_full:
+        log_html += ' <a href="?format=full" style="margin-left: 15px; color: #4ecca3;">Show All Logs</a>'
+    
+    log_html += '</div>'
+    
+    log_html += f'<p>Showing {len(logs)} log entries ({"filtered by " + level_filter if level_filter else "INFO level and above"})</p>'
     
     # Show the logs in reverse chronological order
     for log in reversed(logs):
