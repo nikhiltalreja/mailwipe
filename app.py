@@ -466,8 +466,11 @@ def verify_connection():
             logger.info(f"Verifying password connection for {username} on {imap_server}")
         
         try:
-            # Set socket timeout - use a shorter timeout for the verification step
-            verification_timeout = min(CONNECTION_TIMEOUT, 10)  # Max 10 seconds for verification
+            # Gmail needs a longer timeout for verification than other providers
+            verification_timeout = 20  # Increase to 20 seconds for Gmail connections
+            if 'gmail' in imap_server.lower():
+                verification_timeout = 30  # Even longer for Gmail
+                logger.info(f"Using extended timeout for Gmail: {verification_timeout} seconds")
             socket.setdefaulttimeout(verification_timeout)
             logger.info(f"Using connection timeout: {verification_timeout} seconds")
             
@@ -505,7 +508,12 @@ def verify_connection():
                 if auth_method == 'oauth':
                     # Use our helper function for OAuth2 authentication
                     logger.info("Attempting OAuth2 authentication")
-                    authenticate_oauth2(mail, username, access_token)
+                    
+                    # If it's Gmail, use more retries due to commonly seen timeouts
+                    retries = 2 if 'gmail' in imap_server.lower() else 1
+                    logger.info(f"Using {retries} retries for OAuth2 authentication")
+                    
+                    authenticate_oauth2(mail, username, access_token, max_retries=retries)
                     logger.info(f"OAuth2 authentication successful in {time.time() - auth_start:.2f} seconds")
                 else:
                     # Traditional password authentication
@@ -1430,10 +1438,11 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         cleanup_running_status[task_id]["last_update"] = time.time()
         cleanup_running_status[task_id]["phase"] = "error"
 
-# Helper function to perform XOAUTH2 authentication
-def authenticate_oauth2(mail, username, access_token):
+# Helper function to perform XOAUTH2 authentication with retries
+def authenticate_oauth2(mail, username, access_token, max_retries=1):
     """Authenticate with IMAP server using XOAUTH2"""
     import base64
+    import time
     
     # Make sure username is a string for the formatting
     if isinstance(username, bytes):
@@ -1447,38 +1456,67 @@ def authenticate_oauth2(mail, username, access_token):
     # Create the authentication string per XOAUTH2 spec
     auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
     auth_bytes = auth_string.encode('utf-8')
+    encoded_auth = base64.b64encode(auth_bytes)
     
-    try:
-        # Authenticate with XOAUTH2
-        logger.debug("Sending XOAUTH2 authentication")
-        mail._simple_command('AUTHENTICATE', 'XOAUTH2')
+    retries = 0
+    last_error = None
+    
+    # Try with exponential backoff for retries
+    while retries <= max_retries:
+        if retries > 0:
+            # Add some backoff between retries
+            delay = 2 ** retries  # 2, 4, 8 seconds...
+            logger.info(f"Retrying XOAUTH2 authentication after {delay}s delay (attempt {retries}/{max_retries})")
+            time.sleep(delay)
         
-        # Send the base64 encoded credentials
-        encoded_auth = base64.b64encode(auth_bytes)
-        logger.debug(f"Sending encoded credentials (length: {len(encoded_auth)})")
-        mail.send(encoded_auth + b'\r\n')
-        
-        # Check response with timeout handling
         try:
-            mail._check_response()
-            logger.debug("XOAUTH2 authentication successful")
-        except imaplib.IMAP4.error as e:
-            error_msg = str(e)
-            logger.error(f"XOAUTH2 authentication failed: {error_msg}")
+            # Authenticate with XOAUTH2
+            logger.info(f"Sending XOAUTH2 authentication command (attempt {retries+1}/{max_retries+1})")
+            mail._simple_command('AUTHENTICATE', 'XOAUTH2')
             
-            # Check for common OAuth errors
-            if "invalid_grant" in error_msg.lower():
-                logger.warning("OAuth token appears to be expired or invalid")
-                raise ValueError("Your Google authentication has expired. Please sign in again.")
-            elif "invalid_token" in error_msg.lower():
-                logger.warning("OAuth token is invalid")  
-                raise ValueError("Invalid authentication token. Please sign in again.")
-            else:
-                # Re-raise the original exception
-                raise
-    except socket.timeout:
-        logger.error("XOAUTH2 authentication timed out")
-        raise ValueError("Authentication timed out. Google servers may be busy. Please try again later.")
+            # Send the base64 encoded credentials
+            logger.info(f"Sending encoded credentials (length: {len(encoded_auth)})")
+            mail.send(encoded_auth + b'\r\n')
+            
+            # Check response with timeout handling
+            try:
+                logger.info("Waiting for XOAUTH2 authentication response...")
+                mail._check_response()
+                logger.info("XOAUTH2 authentication successful")
+                return  # Success! Exit function
+            except imaplib.IMAP4.error as e:
+                error_msg = str(e)
+                logger.error(f"XOAUTH2 authentication failed: {error_msg}")
+                
+                # Check for common OAuth errors
+                if "invalid_grant" in error_msg.lower():
+                    logger.warning("OAuth token appears to be expired or invalid")
+                    raise ValueError("Your Google authentication has expired. Please sign in again.")
+                elif "invalid_token" in error_msg.lower():
+                    logger.warning("OAuth token is invalid")  
+                    raise ValueError("Invalid authentication token. Please sign in again.")
+                else:
+                    # Store the error for potential retry
+                    last_error = e
+                    break  # Break out of retry loop for protocol errors (don't retry these)
+                    
+        except socket.timeout:
+            # Only retry on timeout errors
+            logger.warning(f"XOAUTH2 authentication timed out (attempt {retries+1}/{max_retries+1})")
+            last_error = socket.timeout("Authentication timeout")
+            retries += 1
+            continue
+    
+    # If we got here, all retries failed or we had a non-timeout error
+    if isinstance(last_error, socket.timeout):
+        logger.error(f"XOAUTH2 authentication timed out after {max_retries+1} attempts")
+        raise ValueError(f"Authentication with Gmail timed out after multiple attempts. Gmail's IMAP servers might be experiencing issues. Please try again later.")
+    elif last_error:
+        logger.error(f"XOAUTH2 authentication failed: {str(last_error)}")
+        raise last_error
+    else:
+        logger.error("XOAUTH2 authentication failed for unknown reason")
+        raise ValueError("Authentication failed for unknown reason")
 
 def format_size(size_bytes):
     """Format size in bytes to human-readable format"""

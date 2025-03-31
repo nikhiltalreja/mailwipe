@@ -1382,14 +1382,33 @@
                     
                     // Suggest actions for specific errors
                     if (errorMessage.includes('timed out')) {
-                        // Add a retry button for timeouts
+                        // Add a retry button and explanation for Gmail timeouts
                         setTimeout(() => {
                             const statusEl = document.getElementById('connection-status');
+                            
+                            // Add explanation for Gmail timeouts
+                            if (authMethod === 'gmail' || authMethod === 'oauth') {
+                                statusEl.innerHTML += `
+                                    <div style="margin-top: 10px; padding: 10px; background: rgba(52, 152, 219, 0.1); 
+                                                border-left: 4px solid var(--info); border-radius: 4px; font-size: 0.9em;">
+                                        <i class="fas fa-info-circle"></i> 
+                                        <strong>Gmail OAuth Connection Note:</strong> Google's IMAP servers occasionally experience 
+                                        high load or temporary availability issues with OAuth authentication. 
+                                        This is normal and usually resolves by retrying.
+                                    </div>
+                                `;
+                            }
+                            
+                            // Add retry button
                             statusEl.innerHTML += `
-                                <div style="margin-top: 10px;">
+                                <div style="margin-top: 10px; display: flex; gap: 10px;">
                                     <button type="button" onclick="verifyConnection()" 
-                                        style="background: var(--accent); padding: 5px 10px; font-size: 0.9em;">
+                                        style="flex: 1; background: var(--accent); padding: 8px 15px; font-size: 0.9em;">
                                         <i class="fas fa-redo"></i> Retry Connection
+                                    </button>
+                                    <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" 
+                                        style="flex: 1; background: #4285F4; padding: 8px 15px; font-size: 0.9em;">
+                                        <i class="fab fa-google"></i> Re-authenticate
                                     </button>
                                 </div>
                             `;
