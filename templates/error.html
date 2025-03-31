@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - EmailWipe</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Yellowtail&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --bg-card: #162447;
+            --accent: #e94560;
+            --accent-hover: #ff5773;
+            --accent-light: #ff758f;
+            --text-primary: #ffffff;
+            --text-secondary: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --danger: #ff5757;
+            --success: #4ecca3;
+            --warning: #ffb142;
+            --info: #3498db;
+            --box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            --box-shadow-hover: 0 15px 30px rgba(0, 0, 0, 0.3);
+            --radius: 12px;
+            --border: 2px solid rgba(233, 69, 96, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(233, 69, 96, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 80% 80%, rgba(15, 52, 96, 0.2) 0%, transparent 40%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .logo {
+            font-family: 'Yellowtail', cursive;
+            font-size: 4rem;
+            color: var(--text-primary);
+            margin: 0;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3),
+                         0 0 10px rgba(233, 69, 96, 0.6);
+            letter-spacing: 2px;
+        }
+
+        .error-card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: var(--box-shadow);
+            border: var(--border);
+            text-align: center;
+        }
+
+        .error-icon {
+            font-size: 4rem;
+            color: var(--danger);
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            font-family: 'Playfair Display', serif;
+        }
+
+        .error-message {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: var(--text-secondary);
+        }
+
+        .return-button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            max-width: 300px;
+            box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+            font-family: 'Playfair Display', serif;
+            letter-spacing: 1px;
+            text-decoration: none;
+        }
+
+        .return-button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(233, 69, 96, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="logo">EmailWipe</h1>
+        
+        <div class="error-card">
+            <div class="error-icon">
+                <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <h2 class="error-title">Oops! Something went wrong</h2>
+            <p class="error-message">{{ error }}</p>
+            
+            {% if error and 'invalid_client' in error %}
+            <div style="background-color: rgba(52, 152, 219, 0.1); color: var(--info); margin: 0 0 20px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--info); text-align: left;">
+                <div style="display: flex; align-items: flex-start;">
+                    <i class="fas fa-info-circle" style="margin-right: 10px; font-size: 1.2rem; margin-top: 2px;"></i>
+                    <div>
+                        <strong>Troubleshooting Tip:</strong>
+                        <ul style="margin-top: 10px; margin-left: 20px; color: var(--text-secondary);">
+                            <li>Make sure the Auth0 client ID and secret are correct</li>
+                            <li>Verify the callback URL exactly matches what's configured in Auth0</li>
+                            <li>Check that the Auth0 application is set to "Regular Web Application"</li>
+                            <li>Ensure the Token Endpoint Authentication Method is set to "POST"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <a href="/" class="return-button">
+                <i class="fas fa-home"></i> Return to Home
+            </a>
+        </div>
+    </div>
+</body>
+</html>

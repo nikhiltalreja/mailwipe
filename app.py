@@ -53,9 +53,14 @@ auth0 = oauth.register(
     api_base_url=f'https://{AUTH0_DOMAIN}',
     access_token_url=f'https://{AUTH0_DOMAIN}/oauth/token',
     authorize_url=f'https://{AUTH0_DOMAIN}/authorize',
+    server_metadata_url=f'https://{AUTH0_DOMAIN}/.well-known/openid-configuration',
     client_kwargs={
-        'scope': 'openid profile email offline_access',
+        'scope': 'openid profile email',  # Simplified scope, remove offline_access
+        'token_endpoint_auth_method': 'client_secret_post',  # Required for Auth0
+        'response_type': 'code'  # Explicit response type for authorization code flow
     },
+    # Enable debug logging for troubleshooting
+    debug=True
 )
 
 # Configure logging
@@ -113,59 +118,116 @@ def login():
     # Get the connection parameter if provided
     connection = request.args.get('connection')
     
+    # Log the request for troubleshooting
+    logger.info(f"Auth login request with connection: {connection}")
+    logger.info(f"Using AUTH0_DOMAIN: {AUTH0_DOMAIN}")
+    logger.info(f"Using AUTH0_CLIENT_ID: {AUTH0_CLIENT_ID}")
+    logger.info(f"Using AUTH0_CALLBACK_URL: {AUTH0_CALLBACK_URL}")
+    
     # Parameters for Auth0
     params = {
         'redirect_uri': AUTH0_CALLBACK_URL,
-        'audience': f'https://{AUTH0_DOMAIN}/userinfo',
-        'nonce': session['nonce']
+        'nonce': session['nonce'],
+        # Remove audience parameter which can cause issues with social connections
     }
     
     # If a specific connection was requested (like 'google-oauth2')
     if connection:
         params['connection'] = connection
+        logger.info(f"Using specific connection: {connection}")
+        
+        # For Google OAuth specifically
+        if connection == 'google-oauth2':
+            # Add specific scope for Google
+            params['scope'] = 'openid profile email'
+            logger.info("Using specific scope for Google OAuth")
     
     # Redirect to Auth0 login page
-    return auth0.authorize_redirect(**params)
+    try:
+        # Log all authorize parameters for debugging
+        logger.info(f"Auth0 authorize params: {params}")
+        redirect_url = auth0.authorize_redirect(**params)
+        logger.info(f"Auth0 redirect successful")
+        return redirect_url
+    except Exception as e:
+        logger.error(f"Auth0 redirect error: {str(e)}", exc_info=True)
+        # Provide a user-friendly error
+        return render_template('error.html', error="Authentication service temporarily unavailable. Please try again later.")
 
 @app.route('/auth/callback')
 def callback():
     """Handle Auth0 callback after login"""
-    # Get the authorization token
-    token = auth0.authorize_access_token()
+    try:
+        # Log all request args for debugging
+        logger.info(f"Auth0 callback received with args: {request.args}")
+        
+        # Check for error in callback
+        if 'error' in request.args:
+            error = request.args.get('error')
+            error_description = request.args.get('error_description', 'Unknown error')
+            logger.error(f"Auth0 callback error: {error} - {error_description}")
+            return render_template('error.html', error=f"Authentication error: {error_description}")
+        
+        # Log the callback for debugging
+        logger.info(f"Auth0 callback processing, getting token")
+        
+        try:
+            # Get the authorization token with detailed logging
+            token = auth0.authorize_access_token()
+            logger.info(f"Token received successfully: {token.keys()}")
+        except Exception as token_error:
+            logger.error(f"Error getting access token: {str(token_error)}", exc_info=True)
+            # Check if this is the invalid_client error
+            if "invalid_client" in str(token_error).lower():
+                return render_template('error.html', error="Authentication configuration error: Client credentials invalid. Please contact support.")
+            else:
+                return render_template('error.html', error=f"Token error: {str(token_error)}")
+        
+        # Get the user info from Auth0
+        try:
+            resp = auth0.get('userinfo')
+            userinfo = resp.json()
+            logger.info(f"User info received: {userinfo.get('email', 'unknown')}")
+        except Exception as userinfo_error:
+            logger.error(f"Error getting user info: {str(userinfo_error)}", exc_info=True)
+            return render_template('error.html', error="Could not retrieve user information. Please try again.")
+        
+        # Store user info in session
+        session['jwt_token'] = token
+        session['user_email'] = userinfo['email']
+        
+        # Get email domain to determine provider type
+        email = userinfo['email']
+        domain = email.split('@')[-1].lower()
+        logger.info(f"User email domain: {domain}")
+        
+        # Determine which email provider based on domain
+        if domain in ['gmail.com', 'googlemail.com']:
+            session['auth_provider'] = 'google'
+        elif domain in ['outlook.com', 'hotmail.com', 'live.com']:
+            session['auth_provider'] = 'microsoft'
+        elif domain in ['yahoo.com', 'ymail.com']:
+            session['auth_provider'] = 'yahoo'
+        else:
+            session['auth_provider'] = 'generic'
+        
+        # Determine IMAP server based on domain
+        for domain_suffix, server in DEFAULT_IMAP_SERVERS.items():
+            if domain.endswith(domain_suffix):
+                session['imap_server'] = server
+                logger.info(f"IMAP server set to {server}")
+                break
+        else:
+            # Default to using a provider-specific server or none if we can't determine
+            session['imap_server'] = None
+            logger.info("Could not determine IMAP server from domain")
+        
+        # Redirect to the main page with OAuth success parameter
+        return redirect(f'/?oauth=success&provider={session["auth_provider"]}')
     
-    # Get the user info from Auth0
-    resp = auth0.get('userinfo')
-    userinfo = resp.json()
-    
-    # Store user info in session
-    session['jwt_token'] = token
-    session['user_email'] = userinfo['email']
-    
-    # Get email domain to determine provider type
-    email = userinfo['email']
-    domain = email.split('@')[-1].lower()
-    
-    # Determine which email provider based on domain
-    if domain in ['gmail.com', 'googlemail.com']:
-        session['auth_provider'] = 'google'
-    elif domain in ['outlook.com', 'hotmail.com', 'live.com']:
-        session['auth_provider'] = 'microsoft'
-    elif domain in ['yahoo.com', 'ymail.com']:
-        session['auth_provider'] = 'yahoo'
-    else:
-        session['auth_provider'] = 'generic'
-    
-    # Determine IMAP server based on domain
-    for domain_suffix, server in DEFAULT_IMAP_SERVERS.items():
-        if domain.endswith(domain_suffix):
-            session['imap_server'] = server
-            break
-    else:
-        # Default to using a provider-specific server or none if we can't determine
-        session['imap_server'] = None
-    
-    # Redirect to the main page with OAuth success parameter
-    return redirect(f'/?oauth=success&provider={session["auth_provider"]}')
+    except Exception as e:
+        logger.error(f"Auth0 callback processing error: {str(e)}", exc_info=True)
+        return render_template('error.html', error="Unable to complete authentication. Please check the application settings and try again.")
 
 @app.route('/logout')
 def logout():
