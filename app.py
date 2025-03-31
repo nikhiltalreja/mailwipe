@@ -1945,6 +1945,7 @@ if __name__ == '__main__':
     # Make the app accessible on all network interfaces
     
     # Configure logging level based on environment
+    is_production = os.environ.get('RAILWAY_ENVIRONMENT', None) is not None
     logging_level = logging.WARNING if is_production else logging.INFO
     logger.setLevel(logging_level)
     
