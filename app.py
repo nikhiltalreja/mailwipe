@@ -193,12 +193,35 @@ def demo():
 @app.route('/health')
 def health_check():
     """Simple health check endpoint for monitoring"""
-    return jsonify({
-        "status": "ok",
-        "version": "1.0",
-        "timestamp": datetime.now().isoformat(),
-        "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
-    })
+    # Collect system information
+    import psutil
+    import platform
+    
+    try:
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        
+        return jsonify({
+            "status": "ok",
+            "version": "1.1",
+            "timestamp": datetime.now().isoformat(),
+            "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET),
+            "uptime_seconds": int(time.time() - process.create_time()),
+            "python_version": platform.python_version(),
+            "memory_usage_mb": round(memory_info.rss / (1024 * 1024), 2),
+            "cpu_percent": process.cpu_percent(interval=0.1),
+            "thread_count": len(process.threads())
+        })
+    except Exception as e:
+        logger.error(f"Error in health check: {str(e)}")
+        # Simple response if detailed stats fail
+        return jsonify({
+            "status": "degraded",
+            "version": "1.1",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
+        })
 
 @app.route('/debug/logs')
 def view_logs():
