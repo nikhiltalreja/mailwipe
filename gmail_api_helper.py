@@ -1,129 +1,108 @@
 #!/usr/bin/env python3
 """
-Gmail API Helper Module for EmailWipe
-
-This module provides functions to interact with Gmail using the Gmail API
-instead of IMAP. This is a more reliable approach for Gmail accounts.
+Updated Gmail API Helper with Full Access Scope
 """
 
 import os
 import logging
-import base64
 from typing import List, Dict, Any, Optional, Tuple
-
-# Gmail API libraries
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.errors import HttpError
-from google.auth.transport.requests import Request
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Gmail API scopes needed
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+# Full access scope
+SCOPES = ['https://mail.google.com/']
 
-# Custom credentials class that never attempts to refresh
 class NonRefreshingCredentials(Credentials):
-    """Custom credentials class that never attempts to refresh.
-    This is useful when we only have an access token without refresh capabilities."""
-    
+    """Credentials that never refresh - optimized for Auth0 tokens"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._refresh_token = "dummy"
+        self._token_uri = "https://oauth2.googleapis.com/token"
+        self._client_id = "dummy"
+        self._client_secret = "dummy"
+        
     def refresh(self, request):
-        """Override the refresh method to do nothing"""
-        logger.warning("Refresh attempted but ignored by NonRefreshingCredentials")
-        pass
+        raise ValueError("Refresh not supported with Auth0 tokens")
         
     @property
     def expired(self):
-        """Override to always return False so refresh is never attempted"""
+        return False
+
+def validate_auth0_token(access_token: str) -> bool:
+    """Validate that an Auth0 token has the required Gmail scopes"""
+    try:
+        # Decode the token to check scopes (middle part between .s)
+        parts = access_token.split('.')
+        if len(parts) != 3:
+            return False
+            
+        import base64
+        import json
+        # Add padding if needed and decode
+        payload = parts[1] + '=' * (-len(parts[1]) % 4)
+        decoded = json.loads(base64.b64decode(payload).decode('utf-8'))
+        
+        # Check if our required scopes are present
+        token_scopes = decoded.get('scope', '').split()
+        required_scopes = set(SCOPES)
+        
+        return required_scopes.issubset(set(token_scopes))
+        
+    except Exception as e:
+        logger.error(f"Token validation error: {str(e)}")
+        return False
+
+def validate_gmail_scope(access_token: str) -> bool:
+    """Verify the token has the required Gmail scope"""
+    try:
+        import jwt
+        decoded = jwt.decode(access_token, options={"verify_signature": False})
+        return 'https://mail.google.com/' in decoded.get('scope', '').split()
+    except Exception as e:
+        logger.error(f"Scope validation failed: {str(e)}")
         return False
 
 def create_gmail_service(access_token: str) -> Tuple[Any, Optional[str]]:
-    """
-    Create a Gmail API service using an access token.
+    """Create authenticated Gmail service"""
+    if not validate_gmail_scope(access_token):
+        return None, "Missing required Gmail permissions"
     
-    Args:
-        access_token: OAuth access token from Auth0
-        
-    Returns:
-        Tuple of (service object or None if error, error message or None if success)
-    """
     try:
-        logger.info("Creating Gmail API service")
-        # Create our custom credentials object from access token
-        # This credentials object will never attempt to refresh
-        creds = NonRefreshingCredentials(
-            token=access_token,
-            scopes=SCOPES
-        )
-        
-        # Build the Gmail API service with disable_cache=True to avoid cache issues
-        service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
+        creds = NonRefreshingCredentials(token=access_token)
+        service = build('gmail', 'v1', credentials=creds, 
+                       cache_discovery=False, static_discovery=False)
         return service, None
-    
-    except HttpError as error:
-        error_message = f"Gmail API error: {error.reason if hasattr(error, 'reason') else str(error)}"
-        logger.error(error_message)
-        return None, error_message
-    
     except Exception as e:
-        error_message = f"Error creating Gmail service: {str(e)}"
-        logger.error(error_message)
-        return None, error_message
+        logger.error(f"Service creation failed: {str(e)}")
+        return None, str(e)
 
 def verify_gmail_connection(access_token: str) -> Tuple[bool, Optional[str]]:
-    """
-    Verify connection to Gmail API using the given access token.
-    
-    Args:
-        access_token: OAuth access token
-        
-    Returns:
-        Tuple of (success boolean, error message or None if success)
-    """
+    """Verify connection to Gmail API using Auth0 token"""
     try:
-        # Create Gmail service
+        # First validate the token format
+        if not validate_auth0_token(access_token):
+            return False, "Invalid token or missing required Gmail scopes"
+            
+        # Then proceed with API test
         service, error = create_gmail_service(access_token)
         if not service:
             return False, error
-        
-        # Make a simple API call to test the connection
-        # Get user profile to verify the token works
+            
+        # Minimal API call that doesn't require special permissions
         try:
-            profile = service.users().getProfile(userId='me').execute()
-            
-            if profile and 'emailAddress' in profile:
-                logger.info(f"Successfully verified Gmail API connection for {profile['emailAddress']}")
-                return True, None
-            else:
-                logger.warning("Gmail API connection verified but couldn't get email address")
-                return True, None
-                
+            service.users().getProfile(userId='me').execute()
+            return True, None
         except HttpError as error:
-            # Handle API-specific errors
-            error_message = f"Gmail API error: {error.reason if hasattr(error, 'reason') else str(error)}"
-            logger.error(error_message)
+            if error.resp.status == 403:
+                return False, "Insufficient permissions - ensure all required scopes are granted"
+            return False, f"API error: {error.reason}"
             
-            # Check for specific error types
-            if hasattr(error, 'resp') and error.resp.status == 401:
-                logger.warning("OAuth token appears to be expired or invalid")
-                return False, "Authentication failed. Please re-authenticate with Google."
-            elif hasattr(error, 'resp') and error.resp.status == 403:
-                return False, "Permission denied. The requested scopes may not be authorized."
-            else:
-                return False, error_message
-    
     except Exception as e:
-        error_message = f"Error verifying Gmail connection: {str(e)}"
-        logger.error(error_message)
+        return False, f"Connection error: {str(e)}"
         
-        # Handle refresh token errors specifically
-        if "refresh" in str(e).lower():
-            return False, "The OAuth token does not support refreshing. Please re-authenticate with Google."
-        
-        return False, error_message
-
 def get_gmail_folders(access_token: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
     Get list of Gmail folders/labels.
