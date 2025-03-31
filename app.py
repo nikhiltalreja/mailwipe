@@ -1710,10 +1710,9 @@ def gmail_oauth2_login(username, access_token):
 # Helper function to perform XOAUTH2 authentication with retries
 def authenticate_oauth2(mail, username, access_token, max_retries=1):
     """Authenticate with IMAP server using XOAUTH2 with Gmail-specific handling"""
-    # Note: base64 is imported at the module level
+    # Note: base64 and imaplib are imported at the module level
     import time
     import signal
-    import imaplib
     
     # Identify server type
     server_type = getattr(mail, '_host', '').lower()
@@ -1784,6 +1783,21 @@ def format_size(size_bytes):
     else:
         return f"{size_bytes/(1024*1024*1024):.1f} GB"
 
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Server error: {str(error)}")
+    return jsonify({
+        "status": "error",
+        "message": "Internal server error"
+    }), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "status": "error",
+        "message": "Endpoint not found"
+    }), 404
+
 if __name__ == '__main__':
     # For Railway and other PaaS platforms, get port from environment
     port = int(os.environ.get('PORT', 5050))
@@ -1792,4 +1806,19 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('RAILWAY_ENVIRONMENT', None) is None
     
     # Make the app accessible on all network interfaces
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    
+    # Configure logging level based on environment
+    logging_level = logging.WARNING if is_production else logging.INFO
+    logger.setLevel(logging_level)
+    
+    # Run the app
+    try:
+        logger.info(f"Starting application on port {port}")
+        app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
+    except Exception as e:
+        logger.critical(f"Failed to start application: {str(e)}")
+        raise
+
+
+
