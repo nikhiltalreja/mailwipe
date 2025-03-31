@@ -965,53 +965,53 @@
             <div class="step-content active" id="step-1">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Sign in Method</label>
-                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-                            <!-- Social Logins with clarification -->
-                            <div style="background-color: rgba(66, 133, 244, 0.1); color: var(--info); margin: 0 0 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid #4285F4);">
-                                <div style="display: flex; align-items: flex-start;">
-                                    <i class="fas fa-info-circle" style="margin-right: 10px; font-size: 1.2rem; margin-top: 2px;"></i>
-                                    <span>
-                                        <strong>Recommended:</strong> Sign in with Gmail is the most reliable method and integrates directly with Google.
-                                    </span>
+                        <label>Select Connection Method</label>
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                            <button type="button" id="gmail-btn" onclick="selectAuthMethod('gmail')" style="flex: 1; background: #4285F4; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.25);">
+                                <div style="display: flex; align-items: center; justify-content: center;">
+                                    <i class="fab fa-google" style="font-size: 1.2rem; margin-right: 8px;"></i>
+                                    <span style="font-weight: bold;">Continue with Gmail</span>
                                 </div>
-                            </div>
-                            
-                            <div style="display: flex; gap: 10px; margin-bottom: 5px;">
-                                <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" style="flex: 1; background: #4285F4; font-weight: bold;">
-                                    <i class="fab fa-google"></i> Sign in with Gmail
-                                </button>
-                                <button type="button" id="auth0-button" onclick="window.location.href='/auth/login'" style="flex: 1; background: #635dff;">
-                                    <i class="fas fa-lock"></i> Sign in with Email
-                                </button>
-                            </div>
-                            
-                            <!-- Separator -->
-                            <div style="text-align: center; margin: 10px 0; color: var(--text-muted);">
-                                <span style="background: var(--bg-card); padding: 0 10px;">OR</span>
-                                <hr style="margin-top: -10px; border-color: var(--text-muted); opacity: 0.3;">
-                            </div>
-                            
-                            <!-- Password Login Toggle -->
-                            <button type="button" id="oauth-toggle-button" onclick="toggleAuthMethod('password')" style="background: var(--accent-light);">
-                                <i class="fas fa-key"></i> Use Password Login
+                            </button>
+                            <button type="button" id="manual-btn" onclick="selectAuthMethod('manual')" style="flex: 1; background: var(--bg-tertiary);">
+                                <div style="display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-envelope" style="margin-right: 8px;"></i>
+                                    <span>Use Email &amp; Password</span>
+                                </div>
                             </button>
                         </div>
                     </div>
 
-                    <div id="password-auth-section">
+                    <!-- Gmail login info -->
+                    <div id="gmail-auth-section" style="display: none;">
+                        <div style="background-color: rgba(78, 204, 163, 0.1); color: var(--success); margin: 0 0 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--success);">
+                            <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
+                            Continue with Gmail for the most reliable connection
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="imap_server_gmail" style="display: none;">IMAP Server</label>
+                            <input type="hidden" id="imap_server_gmail" value="imap.gmail.com">
+                        </div>
+                        
+                        <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" style="width: 100%; padding: 12px; background: #4285F4; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+                            <div style="background: white; width: 24px; height: 24px; border-radius: 2px; display: flex; align-items: center; justify-content: center; margin-right: 10px;">
+                                <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                                </svg>
+                            </div>
+                            <span style="font-weight: 500; color: white;">Sign in with Google</span>
+                        </button>
+                    </div>
+
+                    <!-- Manual login info -->
+                    <div id="manual-auth-section" style="display: none;">
                         <div style="background-color: rgba(52, 152, 219, 0.1); color: var(--info); margin: 0 0 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--info);">
-                            <div style="display: flex; align-items: center;">
-                                <i class="fas fa-info-circle" style="margin-right: 10px; font-size: 1.2rem;"></i>
-                                <span>For Gmail users: 
-                                    <a href="https://support.google.com/mail/answer/185833" target="_blank" style="color: var(--info); text-decoration: underline;">
-                                        Generate an app password here
-                                    </a>
-                                </span>
-                            </div>
-                            <div style="font-size: 0.9rem; margin-top: 8px;">
-                                For most email providers, you'll need to create an app-specific password or enable "Less secure apps"
-                            </div>
+                            <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
+                            <span>For Gmail, you'll need to <a href="https://support.google.com/mail/answer/185833" target="_blank" style="color: var(--info); text-decoration: underline;">generate an app password</a></span>
                         </div>
                         
                         <div class="form-group">
@@ -1022,14 +1022,13 @@
                         <div class="form-group">
                             <label for="password">Password</label>
                             <input type="password" id="password" autocomplete="current-password" {% if demo_mode %}value="dummy-password"{% endif %}>
-                            <p class="info-text">Your credentials are used only for the current session</p>
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="imap_server">IMAP Server</label>
-                        <input type="text" id="imap_server" placeholder="imap.example.com" {% if demo_mode %}value="imap.gmail.com"{% endif %}>
-                        <p class="info-text">Common servers: imap.gmail.com, outlook.office365.com, imap.mail.yahoo.com</p>
+                        
+                        <div class="form-group">
+                            <label for="imap_server">IMAP Server</label>
+                            <input type="text" id="imap_server" placeholder="imap.example.com" {% if demo_mode %}value="imap.gmail.com"{% endif %}>
+                            <p class="info-text">Common: imap.gmail.com, outlook.office365.com, imap.mail.yahoo.com</p>
+                        </div>
                     </div>
                     
                     <!-- OAuth Success Message -->
@@ -1144,7 +1143,7 @@
 
     <script>
         // Global variables for authentication
-        let authMethod = 'password'; // Default auth method
+        let authMethod = null; // Will be set to 'gmail' or 'manual'
         let oauthProvider = null;
         let oauthSuccess = false;
         let userEmail = '';
@@ -1169,9 +1168,9 @@
                 
                 // Update UI for OAuth success
                 authMethod = 'oauth';
-                document.getElementById('oauth-toggle-button').textContent = 'Using Auth0';
-                document.getElementById('oauth-toggle-button').style.background = 'var(--success)';
-                document.getElementById('password-auth-section').style.display = 'none';
+                
+                // Show Gmail method as active
+                selectAuthMethod('gmail', true);
                 
                 // Show OAuth success message
                 const oauthSuccessElement = document.getElementById('oauth-success');
@@ -1189,38 +1188,58 @@
                             userEmail = data.email;
                             document.getElementById('oauth-email').textContent = data.email;
                             
-                            // Set server automatically based on email domain
-                            const domain = userEmail.split('@')[1].toLowerCase();
-                            
-                            if (domain.includes('gmail.com') || domain.includes('googlemail.com')) {
-                                document.getElementById('imap_server').value = 'imap.gmail.com';
-                            } else if (domain.includes('outlook.com') || domain.includes('hotmail.com') || domain.includes('live.com')) {
-                                document.getElementById('imap_server').value = 'outlook.office365.com';
-                            } else if (domain.includes('yahoo.com') || domain.includes('ymail.com')) {
-                                document.getElementById('imap_server').value = 'imap.mail.yahoo.com';
-                            } else if (domain.includes('aol.com')) {
-                                document.getElementById('imap_server').value = 'imap.aol.com';
-                            }
+                            // IMAP server is auto-set for Gmail
+                            document.getElementById('imap_server_gmail').value = 'imap.gmail.com';
                         }
                     })
                     .catch(error => console.error('Error fetching user info:', error));
+            } else {
+                // No OAuth callback, show the initial selection UI
+                // By default, don't show any method until user selects one
+                document.getElementById('gmail-auth-section').style.display = 'none';
+                document.getElementById('manual-auth-section').style.display = 'none';
+                
+                {% if demo_mode %}
+                // In demo mode, default to manual method with dummy values
+                selectAuthMethod('manual');
+                {% endif %}
             }
         };
         
-        // Toggle between password and OAuth authentication
-        function toggleAuthMethod(method) {
+        // Handle selection of authentication method
+        function selectAuthMethod(method, isCallback) {
             authMethod = method;
             
-            if (method === 'password') {
-                document.getElementById('password-auth-section').style.display = 'block';
-                document.getElementById('oauth-success').style.display = 'none';
-                document.getElementById('oauth-toggle-button').textContent = 'Password Login';
-                document.getElementById('oauth-toggle-button').style.background = 'var(--accent-light)';
+            // Update UI to show active button
+            const gmailBtn = document.getElementById('gmail-btn');
+            const manualBtn = document.getElementById('manual-btn');
+            
+            if (method === 'gmail') {
+                // Show Gmail section, hide manual section
+                document.getElementById('gmail-auth-section').style.display = 'block';
+                document.getElementById('manual-auth-section').style.display = 'none';
+                
+                // Update button styles
+                gmailBtn.style.background = '#4285F4';
+                gmailBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.25)';
+                manualBtn.style.background = 'var(--bg-tertiary)';
+                manualBtn.style.boxShadow = 'none';
+                
+                // If this isn't from a callback, hide the success message
+                if (!isCallback) {
+                    document.getElementById('oauth-success').style.display = 'none';
+                }
             } else {
-                document.getElementById('password-auth-section').style.display = 'none';
-                document.getElementById('oauth-success').style.display = 'block';
-                document.getElementById('oauth-toggle-button').textContent = 'Using OAuth';
-                document.getElementById('oauth-toggle-button').style.background = 'var(--success)';
+                // Show manual section, hide Gmail section
+                document.getElementById('gmail-auth-section').style.display = 'none';
+                document.getElementById('manual-auth-section').style.display = 'block';
+                document.getElementById('oauth-success').style.display = 'none';
+                
+                // Update button styles
+                gmailBtn.style.background = 'var(--bg-tertiary)';
+                gmailBtn.style.boxShadow = 'none';
+                manualBtn.style.background = 'var(--accent)';
+                manualBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.25)';
             }
         }
         
@@ -1266,26 +1285,33 @@
         
         // Verify the connection to the IMAP server
         function verifyConnection() {
-            const imapServer = document.getElementById('imap_server').value;
+            let imapServer;
             
             // Build request data based on auth method
-            const requestData = {
-                imap_server: imapServer
-            };
+            const requestData = {};
             
-            if (authMethod === 'oauth') {
-                // For OAuth, we need the provider
-                if (!oauthSuccess || !oauthProvider) {
-                    showConnectionStatus('error', 'OAuth authentication not completed');
+            if (authMethod === 'gmail' || authMethod === 'oauth') {
+                // For Gmail/OAuth method
+                if (authMethod === 'gmail' && !oauthSuccess) {
+                    showConnectionStatus('warning', 'Please sign in with Google first');
                     return;
                 }
                 
+                if (!oauthSuccess || !oauthProvider) {
+                    showConnectionStatus('error', 'Authentication not completed');
+                    return;
+                }
+                
+                // Get IMAP server from the hidden field
+                imapServer = document.getElementById('imap_server_gmail').value;
+                
                 requestData.auth_method = 'oauth';
                 requestData.provider = oauthProvider;
-            } else {
-                // For password auth, we need username and password
+            } else if (authMethod === 'manual') {
+                // For manual auth, we need username, password and server
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
+                imapServer = document.getElementById('imap_server').value;
                 
                 if (!username || !password) {
                     showConnectionStatus('error', 'Please fill in all fields');
@@ -1295,6 +1321,10 @@
                 requestData.auth_method = 'password';
                 requestData.username = username;
                 requestData.password = password;
+            } else {
+                // No method selected
+                showConnectionStatus('warning', 'Please select a connection method');
+                return;
             }
             
             // Validate IMAP server
@@ -1302,6 +1332,9 @@
                 showConnectionStatus('error', 'IMAP server is required');
                 return;
             }
+            
+            // Add IMAP server to request data
+            requestData.imap_server = imapServer;
             
             // Disable the verify button
             const verifyButton = document.getElementById('verify-button');
