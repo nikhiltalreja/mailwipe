@@ -816,6 +816,71 @@
             }
         }
         
+        /* Additional styles for very small devices like iPhone 13 mini */
+        @media (max-width: 375px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            .logo-border {
+                padding: 10px 30px;
+            }
+            
+            .tagline {
+                font-size: 1rem;
+            }
+            
+            .free-badge {
+                right: -15px;
+                top: -8px;
+                font-size: 0.7rem;
+                padding: 2px 8px;
+            }
+            
+            .feature {
+                padding: 15px;
+                min-width: 140px;
+            }
+            
+            .feature i {
+                width: 50px;
+                height: 50px;
+                line-height: 50px;
+                font-size: 1.5rem;
+            }
+            
+            .feature h3 {
+                font-size: 1rem;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .steps-indicator {
+                gap: 5px;
+            }
+            
+            .step {
+                width: 25px;
+                height: 25px;
+                font-size: 0.8rem;
+            }
+            
+            .step-connector {
+                width: 20px;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 1rem;
+            }
+        }
+        
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 10px;
@@ -837,12 +902,17 @@
 </head>
 <body>
     <div class="container">
-        {% if not demo_mode or request.path != '/demo-content' %}
         <header>
             <div class="logo-container">
+                {% if demo_mode %}
+                <div class="free-badge" style="background-color: var(--warning);">
+                    <i class="fas fa-flask"></i> DEMO
+                </div>
+                {% else %}
                 <div class="free-badge">
                     <i class="fas fa-tag"></i> FREE
                 </div>
+                {% endif %}
                 <div class="logo-border">
                     <h1 class="logo">EmailWipe</h1>
                 </div>
@@ -850,14 +920,15 @@
             <p class="tagline">Email cleaner that deletes in seconds, not hours</p>
             
             {% if demo_mode %}
-            <div class="demo-banner" style="background-color: rgba(255, 177, 66, 0.2); color: var(--warning); margin: 15px 0; padding: 10px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--warning); text-align: center;">
-                <strong>DEMO MODE</strong> - No actual emails will be deleted in this simulation
+            <div class="demo-banner" style="background-color: rgba(255, 177, 66, 0.2); color: var(--warning); margin: 15px 0; padding: 15px; border-radius: var(--radius); font-weight: 500; border-left: 4px solid var(--warning); text-align: center;">
+                <strong>DEMO MODE</strong> - No actual emails will be deleted in this simulation<br>
+                <a href="/" style="display: inline-block; margin-top: 10px; color: var(--success); font-weight: bold;">
+                    <i class="fas fa-arrow-right"></i> Switch to Live Version
+                </a>
             </div>
             {% endif %}
         </header>
-        {% endif %}
 
-        {% if not demo_mode or request.path != '/demo-content' %}
         <div class="features">
             <div class="feature">
                 <i class="fas fa-shield-alt"></i>
@@ -880,7 +951,6 @@
                 <p>Bulk delete old emails with just a few clicks</p>
             </div>
         </div>
-        {% endif %}
 
         <div class="steps-indicator">
             <div class="step active" id="step-indicator-1">1</div>
@@ -988,7 +1058,6 @@
             </div>
         </div>
 
-        {% if not demo_mode or request.path != '/demo-content' %}
         <footer>
             <div class="footer-logo">EmailWipe</div>
             <p>Privacy-focused email cleanup tool • No email content is stored • <span id="current-year"></span></p>
@@ -1008,7 +1077,6 @@
             </p>
             {% endif %}
         </footer>
-        {% endif %}
     </div>
 
     <script>

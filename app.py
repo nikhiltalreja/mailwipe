@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect
 import imaplib
 import ssl
 from datetime import datetime, timedelta
@@ -35,16 +35,14 @@ cleanup_running_status = {}
 
 @app.route('/')
 def index():
-    return render_template('index.html', demo_mode=False, debug=app.debug)
+    # Check if demo parameter is provided in URL
+    demo_mode = request.args.get('demo', 'false').lower() == 'true'
+    return render_template('index.html', demo_mode=demo_mode, debug=app.debug)
 
 @app.route('/demo')
 def demo():
-    return render_template('demo.html')
-
-@app.route('/demo-content')
-def demo_content():
-    # This will serve the app content for the iframe in demo mode
-    return render_template('index.html', demo_mode=True, debug=app.debug)
+    # Redirect to main page with demo parameter
+    return redirect('/?demo=true')
 
 @app.route('/verify', methods=['POST'])
 def verify_connection():
