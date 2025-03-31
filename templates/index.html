@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EmailWipe - Free Email Cleanup Tool</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✉️</text></svg>">
     
     <!-- SEO Meta Tags -->
     <meta name="description" content="Free email cleanup tool that quickly removes old emails. No message count restrictions, works with Gmail, Outlook, Yahoo and other email providers.">
@@ -1532,12 +1533,6 @@
                 verifyButton.disabled = false;
                 verifyButton.innerHTML = '<i class="fas fa-link"></i> Verify Connection';
                 showConnectionStatus('error', 'Connection failed: ' + error.message);
-            });
-            .catch(error => {
-                console.error('Error:', error);
-                showConnectionStatus('error', 'Connection failed. Please check your network connection.');
-                verifyButton.disabled = false;
-                verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
             });
             
             // Enable simulation for demo mode or local development
