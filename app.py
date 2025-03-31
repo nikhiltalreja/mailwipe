@@ -1,31 +1,32 @@
 # app.py
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
-from google_auth_oauthlib.flow import Flow as GoogleFlow
-from google.oauth2.credentials import Credentials as GoogleCredentials
-import msal
+from authlib.integrations.flask_client import OAuth
 import json
 import os
 import secrets
 import requests
-from urllib.parse import quote
 
 # Import OAuth configuration
 try:
-    from oauth_config import (
-        GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, GOOGLE_AUTH_SCOPES,
-        MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI, MICROSOFT_AUTH_SCOPES
-    )
+    from oauth_config import AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_CALLBACK_URL, DEFAULT_IMAP_SERVERS
 except ImportError:
     # For development/testing without real credentials
-    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "fake-google-id")
-    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "fake-google-secret")
-    GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5050/auth/google/callback")
-    GOOGLE_AUTH_SCOPES = ["https://mail.google.com/"]
+    AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "your-tenant.auth0.com")
+    AUTH0_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID", "your-client-id")
+    AUTH0_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET", "your-client-secret")
+    AUTH0_CALLBACK_URL = os.environ.get("AUTH0_CALLBACK_URL", "http://localhost:5050/auth/callback")
     
-    MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID", "fake-ms-id")
-    MICROSOFT_CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET", "fake-ms-secret")
-    MICROSOFT_REDIRECT_URI = os.environ.get("MICROSOFT_REDIRECT_URI", "http://localhost:5050/auth/microsoft/callback")
-    MICROSOFT_AUTH_SCOPES = ["https://outlook.office.com/IMAP.AccessAsUser.All", "offline_access"]
+    # Default IMAP servers for common email providers
+    DEFAULT_IMAP_SERVERS = {
+        "gmail.com": "imap.gmail.com",
+        "googlemail.com": "imap.gmail.com",
+        "outlook.com": "outlook.office365.com",
+        "hotmail.com": "outlook.office365.com",
+        "live.com": "outlook.office365.com",
+        "yahoo.com": "imap.mail.yahoo.com",
+        "ymail.com": "imap.mail.yahoo.com",
+        "aol.com": "imap.aol.com"
+    }
 import imaplib
 import ssl
 from datetime import datetime, timedelta
@@ -42,6 +43,20 @@ from collections import defaultdict
 app = Flask(__name__)
 # Set a secret key for sessions
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
+
+# Set up Auth0 client
+oauth = OAuth(app)
+auth0 = oauth.register(
+    'auth0',
+    client_id=AUTH0_CLIENT_ID,
+    client_secret=AUTH0_CLIENT_SECRET,
+    api_base_url=f'https://{AUTH0_DOMAIN}',
+    access_token_url=f'https://{AUTH0_DOMAIN}/oauth/token',
+    authorize_url=f'https://{AUTH0_DOMAIN}/authorize',
+    client_kwargs={
+        'scope': 'openid profile email offline_access',
+    },
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -72,16 +87,16 @@ def demo():
     # Redirect to main page with demo parameter
     return redirect('/?demo=true')
 
-# ---- OAuth Routes for Gmail and Outlook ----
+# ---- Auth0 OAuth Routes ----
 
 @app.route('/user_info')
 def get_user_info():
     """Get user info from session"""
-    if 'user_email' in session and 'provider' in session:
+    if 'user_email' in session:
         return jsonify({
             "status": "success",
             "email": session['user_email'],
-            "provider": session['provider']
+            "auth_provider": session.get('auth_provider', 'auth0')
         })
     else:
         return jsonify({
@@ -89,149 +104,71 @@ def get_user_info():
             "message": "No active user session"
         })
 
+@app.route('/auth/login')
+def login():
+    """Redirect to Auth0 login page"""
+    # Generate a nonce to prevent CSRF attacks
+    session['nonce'] = secrets.token_urlsafe(16)
+    
+    # Redirect to Auth0 login page
+    return auth0.authorize_redirect(
+        redirect_uri=AUTH0_CALLBACK_URL,
+        audience=f'https://{AUTH0_DOMAIN}/userinfo',
+        nonce=session['nonce']
+    )
+
+@app.route('/auth/callback')
+def callback():
+    """Handle Auth0 callback after login"""
+    # Get the authorization token
+    token = auth0.authorize_access_token()
+    
+    # Get the user info from Auth0
+    resp = auth0.get('userinfo')
+    userinfo = resp.json()
+    
+    # Store user info in session
+    session['jwt_token'] = token
+    session['user_email'] = userinfo['email']
+    
+    # Get email domain to determine provider type
+    email = userinfo['email']
+    domain = email.split('@')[-1].lower()
+    
+    # Determine which email provider based on domain
+    if domain in ['gmail.com', 'googlemail.com']:
+        session['auth_provider'] = 'google'
+    elif domain in ['outlook.com', 'hotmail.com', 'live.com']:
+        session['auth_provider'] = 'microsoft'
+    elif domain in ['yahoo.com', 'ymail.com']:
+        session['auth_provider'] = 'yahoo'
+    else:
+        session['auth_provider'] = 'generic'
+    
+    # Determine IMAP server based on domain
+    for domain_suffix, server in DEFAULT_IMAP_SERVERS.items():
+        if domain.endswith(domain_suffix):
+            session['imap_server'] = server
+            break
+    else:
+        # Default to using a provider-specific server or none if we can't determine
+        session['imap_server'] = None
+    
+    # Redirect to the main page with OAuth success parameter
+    return redirect(f'/?oauth=success&provider={session["auth_provider"]}')
+
 @app.route('/logout')
 def logout():
-    """Clear session data and log out"""
+    """Clear session data and log out from Auth0"""
+    # Clear session
     session.clear()
-    return redirect('/')
-
-@app.route('/auth/google')
-def google_auth():
-    """Start the Google OAuth flow"""
-    # Create a flow instance with Google OAuth credentials
-    flow = GoogleFlow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [GOOGLE_REDIRECT_URI]
-            }
-        },
-        scopes=GOOGLE_AUTH_SCOPES
-    )
     
-    # Generate the authorization URL
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'
-    )
-    
-    # Store the state in the session for later verification
-    session['oauth_state'] = state
-    
-    # Redirect to the authorization URL
-    return redirect(authorization_url)
-
-@app.route('/auth/google/callback')
-def google_auth_callback():
-    """Handle the Google OAuth callback"""
-    # Verify state to prevent CSRF
-    if 'oauth_state' not in session:
-        return jsonify({"status": "error", "message": "OAuth state missing"}), 400
-    
-    # Create flow instance with the stored state
-    flow = GoogleFlow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [GOOGLE_REDIRECT_URI]
-            }
-        },
-        scopes=GOOGLE_AUTH_SCOPES,
-        state=session['oauth_state']
-    )
-    
-    # Exchange the authorization code for credentials
-    flow.fetch_token(authorization_response=request.url)
-    credentials = flow.credentials
-    
-    # Store the credentials in the session
-    session['google_credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
+    # Redirect to Auth0 logout endpoint
+    params = {
+        'returnTo': url_for('index', _external=True),
+        'client_id': AUTH0_CLIENT_ID
     }
-    
-    # Get user email from Google
-    userinfo_response = requests.get(
-        'https://www.googleapis.com/oauth2/v1/userinfo',
-        headers={'Authorization': f'Bearer {credentials.token}'}
-    ).json()
-    
-    email = userinfo_response.get('email', '')
-    session['user_email'] = email
-    session['provider'] = 'google'
-    
-    # Redirect to the main page with OAuth success parameter
-    return redirect('/?oauth=success&provider=google')
-
-@app.route('/auth/microsoft')
-def microsoft_auth():
-    """Start the Microsoft OAuth flow"""
-    # Create MSAL app instance
-    msal_app = msal.ConfidentialClientApplication(
-        MICROSOFT_CLIENT_ID,
-        authority="https://login.microsoftonline.com/common",
-        client_credential=MICROSOFT_CLIENT_SECRET
-    )
-    
-    # Generate the authorization URL
-    auth_url = msal_app.get_authorization_request_url(
-        MICROSOFT_AUTH_SCOPES,
-        redirect_uri=MICROSOFT_REDIRECT_URI,
-        state=secrets.token_hex(16)
-    )
-    
-    # Redirect to the authorization URL
-    return redirect(auth_url)
-
-@app.route('/auth/microsoft/callback')
-def microsoft_auth_callback():
-    """Handle the Microsoft OAuth callback"""
-    # Get the authorization code from the request
-    code = request.args.get('code')
-    if not code:
-        return jsonify({"status": "error", "message": "Authorization code missing"}), 400
-    
-    # Create MSAL app instance
-    msal_app = msal.ConfidentialClientApplication(
-        MICROSOFT_CLIENT_ID,
-        authority="https://login.microsoftonline.com/common",
-        client_credential=MICROSOFT_CLIENT_SECRET
-    )
-    
-    # Exchange the authorization code for tokens
-    result = msal_app.acquire_token_by_authorization_code(
-        code,
-        scopes=MICROSOFT_AUTH_SCOPES,
-        redirect_uri=MICROSOFT_REDIRECT_URI
-    )
-    
-    if 'error' in result:
-        return jsonify({"status": "error", "message": result.get("error_description", "Authentication failed")}), 400
-    
-    # Store the tokens in the session
-    session['microsoft_tokens'] = {
-        'access_token': result['access_token'],
-        'refresh_token': result.get('refresh_token', ''),
-        'expires_in': result['expires_in']
-    }
-    
-    # Get user information
-    session['user_email'] = result.get('id_token_claims', {}).get('preferred_username', '')
-    session['provider'] = 'microsoft'
-    
-    # Redirect to the main page with OAuth success parameter
-    return redirect('/?oauth=success&provider=microsoft')
+    return redirect(auth0.api_base_url + '/v2/logout?' + urllib.parse.urlencode(params))
 
 @app.route('/verify', methods=['POST'])
 def verify_connection():
@@ -249,22 +186,22 @@ def verify_connection():
     
     # Handle OAuth authentication
     if auth_method == 'oauth':
-        provider = data.get('provider')
-        if not provider:
-            return jsonify({"status": "error", "message": "OAuth provider is required"})
-        
         # Get credentials from session
-        if provider == 'google' and 'google_credentials' in session:
+        if 'jwt_token' in session and 'user_email' in session:
             username = session.get('user_email', '')
-            credentials = session['google_credentials']
-            access_token = credentials['token']
-        elif provider == 'microsoft' and 'microsoft_tokens' in session:
-            username = session.get('user_email', '')
-            access_token = session['microsoft_tokens']['access_token']
+            token = session.get('jwt_token', {})
+            access_token = token.get('access_token', '')
+            
+            # Try to use stored IMAP server if available
+            if 'imap_server' in session and not imap_server:
+                imap_server = session['imap_server']
+                
+            if not access_token:
+                return jsonify({"status": "error", "message": "No active OAuth session found"})
         else:
-            return jsonify({"status": "error", "message": f"No active {provider} session found"})
+            return jsonify({"status": "error", "message": "No active OAuth session found"})
         
-        logger.info(f"Verifying OAuth connection for {username} on {imap_server}")
+        logger.info(f"Verifying Auth0 OAuth connection for {username} on {imap_server}")
     else:
         # Traditional password authentication
         username = data['username']
@@ -336,22 +273,22 @@ def get_folders():
     
     # Handle OAuth authentication
     if auth_method == 'oauth':
-        provider = data.get('provider')
-        if not provider:
-            return jsonify({"status": "error", "message": "OAuth provider is required"})
-        
         # Get credentials from session
-        if provider == 'google' and 'google_credentials' in session:
+        if 'jwt_token' in session and 'user_email' in session:
             username = session.get('user_email', '')
-            credentials = session['google_credentials']
-            access_token = credentials['token']
-        elif provider == 'microsoft' and 'microsoft_tokens' in session:
-            username = session.get('user_email', '')
-            access_token = session['microsoft_tokens']['access_token']
+            token = session.get('jwt_token', {})
+            access_token = token.get('access_token', '')
+            
+            # Try to use stored IMAP server if available
+            if 'imap_server' in session and not imap_server:
+                imap_server = session['imap_server']
+                
+            if not access_token:
+                return jsonify({"status": "error", "message": "No active OAuth session found"})
         else:
-            return jsonify({"status": "error", "message": f"No active {provider} session found"})
+            return jsonify({"status": "error", "message": "No active OAuth session found"})
         
-        logger.info(f"Getting folders with OAuth for {username} on {imap_server}")
+        logger.info(f"Getting folders with Auth0 OAuth for {username} on {imap_server}")
     else:
         # Traditional password authentication
         username = data['username']
@@ -726,22 +663,21 @@ def clean_emails():
     
     # Handle OAuth authentication
     if auth_method == 'oauth':
-        provider = data.get('provider')
-        if not provider:
-            return jsonify({"status": "error", "message": "OAuth provider is required"})
-        
         # Get credentials from session
-        if provider == 'google' and 'google_credentials' in session:
+        if 'jwt_token' in session and 'user_email' in session:
             username = session.get('user_email', '')
-            credentials = session['google_credentials']
-            access_token = credentials['token']
+            token = session.get('jwt_token', {})
+            access_token = token.get('access_token', '')
             password = None  # Not used for OAuth
-        elif provider == 'microsoft' and 'microsoft_tokens' in session:
-            username = session.get('user_email', '')
-            access_token = session['microsoft_tokens']['access_token']
-            password = None  # Not used for OAuth
+            
+            # Try to use stored IMAP server if available
+            if 'imap_server' in session and not imap_server:
+                imap_server = session['imap_server']
+                
+            if not access_token:
+                return jsonify({"status": "error", "message": "No active OAuth session found"})
         else:
-            return jsonify({"status": "error", "message": f"No active {provider} session found"})
+            return jsonify({"status": "error", "message": "No active OAuth session found"})
     else:
         # Traditional password authentication
         username = data['username']

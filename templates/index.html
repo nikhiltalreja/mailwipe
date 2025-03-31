@@ -970,11 +970,8 @@
                             <button type="button" id="oauth-toggle-button" onclick="toggleAuthMethod('password')" style="flex: 1; background: var(--accent-light);">
                                 Password Login
                             </button>
-                            <button type="button" id="google-auth-button" onclick="window.location.href='/auth/google'" style="flex: 1; background: #4285F4;">
-                                <i class="fab fa-google"></i> Sign in with Google
-                            </button>
-                            <button type="button" id="microsoft-auth-button" onclick="window.location.href='/auth/microsoft'" style="flex: 1; background: #0078D4;">
-                                <i class="fab fa-microsoft"></i> Sign in with Microsoft
+                            <button type="button" id="auth0-button" onclick="window.location.href='/auth/login'" style="flex: 1; background: #635dff;">
+                                <i class="fas fa-lock"></i> Sign in with Auth0
                             </button>
                         </div>
                     </div>
@@ -1132,24 +1129,17 @@
                 
                 // Update UI for OAuth success
                 authMethod = 'oauth';
-                document.getElementById('oauth-toggle-button').textContent = 'Using OAuth';
+                document.getElementById('oauth-toggle-button').textContent = 'Using Auth0';
                 document.getElementById('oauth-toggle-button').style.background = 'var(--success)';
                 document.getElementById('password-auth-section').style.display = 'none';
                 
                 // Show OAuth success message
-                const oauthSuccess = document.getElementById('oauth-success');
-                oauthSuccess.style.display = 'block';
+                const oauthSuccessElement = document.getElementById('oauth-success');
+                oauthSuccessElement.style.display = 'block';
                 
                 // Set provider name (capitalize first letter)
                 const providerName = oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1);
                 document.getElementById('oauth-provider').textContent = providerName;
-                
-                // Set server automatically based on provider
-                if (oauthProvider === 'google') {
-                    document.getElementById('imap_server').value = 'imap.gmail.com';
-                } else if (oauthProvider === 'microsoft') {
-                    document.getElementById('imap_server').value = 'outlook.office365.com';
-                }
                 
                 // Get user info via fetch to show in the UI
                 fetch('/user_info')
@@ -1158,6 +1148,19 @@
                         if (data.status === 'success') {
                             userEmail = data.email;
                             document.getElementById('oauth-email').textContent = data.email;
+                            
+                            // Set server automatically based on email domain
+                            const domain = userEmail.split('@')[1].toLowerCase();
+                            
+                            if (domain.includes('gmail.com') || domain.includes('googlemail.com')) {
+                                document.getElementById('imap_server').value = 'imap.gmail.com';
+                            } else if (domain.includes('outlook.com') || domain.includes('hotmail.com') || domain.includes('live.com')) {
+                                document.getElementById('imap_server').value = 'outlook.office365.com';
+                            } else if (domain.includes('yahoo.com') || domain.includes('ymail.com')) {
+                                document.getElementById('imap_server').value = 'imap.mail.yahoo.com';
+                            } else if (domain.includes('aol.com')) {
+                                document.getElementById('imap_server').value = 'imap.aol.com';
+                            }
                         }
                     })
                     .catch(error => console.error('Error fetching user info:', error));
