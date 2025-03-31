@@ -1365,7 +1365,50 @@
                     }, 800);
                 } else {
                     // Error path
-                    showConnectionStatus('error', `Failed to connect: ${data.message}`);
+                    let errorMessage = data.message || 'Unknown error';
+                    let detailsMessage = data.details || '';
+                    
+                    // Better error display with details if available
+                    if (detailsMessage && detailsMessage !== errorMessage) {
+                        showConnectionStatus('error', 
+                            `<div>${errorMessage}</div>
+                             <div style="font-size: 0.85em; margin-top: 8px; color: var(--text-muted);">
+                                 Details: ${detailsMessage}
+                             </div>`
+                        );
+                    } else {
+                        showConnectionStatus('error', errorMessage);
+                    }
+                    
+                    // Suggest actions for specific errors
+                    if (errorMessage.includes('timed out')) {
+                        // Add a retry button for timeouts
+                        setTimeout(() => {
+                            const statusEl = document.getElementById('connection-status');
+                            statusEl.innerHTML += `
+                                <div style="margin-top: 10px;">
+                                    <button type="button" onclick="verifyConnection()" 
+                                        style="background: var(--accent); padding: 5px 10px; font-size: 0.9em;">
+                                        <i class="fas fa-redo"></i> Retry Connection
+                                    </button>
+                                </div>
+                            `;
+                        }, 500);
+                    } else if (errorMessage.includes('Authentication failed') && (authMethod === 'gmail' || authMethod === 'oauth')) {
+                        // Suggest re-authentication for auth failures
+                        setTimeout(() => {
+                            const statusEl = document.getElementById('connection-status');
+                            statusEl.innerHTML += `
+                                <div style="margin-top: 10px;">
+                                    <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" 
+                                        style="background: #4285F4; padding: 5px 10px; font-size: 0.9em;">
+                                        <i class="fab fa-google"></i> Re-authenticate with Google
+                                    </button>
+                                </div>
+                            `;
+                        }, 500);
+                    }
+                    
                     verifyButton.disabled = false;
                     verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
                 }

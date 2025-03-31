@@ -110,6 +110,32 @@ logging.basicConfig(level=numeric_level,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Setup circular buffer for error logs 
+class CircularLogBuffer(logging.Handler):
+    def __init__(self, capacity=100):
+        logging.Handler.__init__(self)
+        self.capacity = capacity
+        self.buffer = []
+        self.formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    def emit(self, record):
+        # Add new log record to the buffer
+        self.buffer.append({
+            "timestamp": self.formatter.formatTime(record),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "logger": record.name
+        })
+        
+        # If the buffer is full, remove the oldest record
+        if len(self.buffer) > self.capacity:
+            self.buffer.pop(0)
+
+# Create and add the buffer handler
+log_buffer = CircularLogBuffer(capacity=100)
+log_buffer.setLevel(logging.WARNING)  # Only capture WARNING and above to keep buffer small
+logging.getLogger().addHandler(log_buffer)
+
 # Log startup information
 logger.info(f"Starting EmailWipe, Python version: {sys.version}")
 logger.info(f"Using Auth0 domain: {AUTH0_DOMAIN}")
@@ -159,6 +185,42 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
     })
+
+@app.route('/debug/logs')
+def view_logs():
+    """View recent logs for debugging (no authentication for simplicity)"""
+    # Get the 50 most recent logs
+    logs = log_buffer.buffer[-50:] if log_buffer.buffer else []
+    
+    # Check if the logs should be returned as JSON or HTML
+    if request.args.get('format') == 'json':
+        return jsonify(logs)
+        
+    # Generate simple HTML directly without a template
+    log_html = '<html><head><title>EmailWipe Debug Logs</title><style>'
+    log_html += 'body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }'
+    log_html += 'h1 { color: #e94560; }'
+    log_html += '.log { padding: 8px; margin: 5px 0; border-radius: 4px; }'
+    log_html += '.ERROR { background: rgba(255,87,87,0.2); border-left: 4px solid #ff5757; }'
+    log_html += '.WARNING { background: rgba(255,177,66,0.2); border-left: 4px solid #ffb142; }'
+    log_html += '.INFO { background: rgba(52,152,219,0.1); border-left: 4px solid #3498db; }'
+    log_html += '.timestamp { color: #a0a0a0; font-size: 0.9em; }'
+    log_html += '.message { white-space: pre-wrap; word-break: break-word; }'
+    log_html += '.refresh { background: #e94560; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; }'
+    log_html += '</style></head><body>'
+    log_html += '<h1>EmailWipe Debug Logs</h1>'
+    log_html += '<button class="refresh" onclick="location.reload()">Refresh Logs</button>'
+    log_html += '<p>Showing the last ' + str(len(logs)) + ' log entries (WARNING level and above)</p>'
+    
+    # Show the logs in reverse chronological order
+    for log in reversed(logs):
+        log_html += f'<div class="log {log["level"]}">'
+        log_html += f'<div class="timestamp">{log["timestamp"]} - {log["level"]} - {log["logger"]}</div>'
+        log_html += f'<div class="message">{log["message"]}</div>'
+        log_html += '</div>'
+    
+    log_html += '</body></html>'
+    return log_html
 
 # ---- Auth0 OAuth Routes ----
 
@@ -320,77 +382,163 @@ def verify_connection():
     start_time = time.time()
     data = request.json
     
-    # Determine authentication method
-    auth_method = data.get('auth_method', 'password')
-    
-    # Get IMAP server from input
-    imap_server = data.get('imap_server')
-    if not imap_server:
-        return jsonify({"status": "error", "message": "IMAP server is required"})
-    
-    # Handle OAuth authentication
-    if auth_method == 'oauth':
-        # Get credentials from session
-        if 'jwt_token' in session and 'user_email' in session:
-            username = session.get('user_email', '')
-            token = session.get('jwt_token', {})
-            access_token = token.get('access_token', '')
-            
-            # Try to use stored IMAP server if available
-            if 'imap_server' in session and not imap_server:
-                imap_server = session['imap_server']
-                
-            if not access_token:
-                return jsonify({"status": "error", "message": "No active OAuth session found"})
-        else:
-            return jsonify({"status": "error", "message": "No active OAuth session found"})
-        
-        logger.info(f"Verifying Auth0 OAuth connection for {username} on {imap_server}")
-    else:
-        # Traditional password authentication
-        username = data['username']
-        password = data['password']
-        logger.info(f"Verifying password connection for {username} on {imap_server}")
-    
     try:
-        # Set socket timeout
-        socket.setdefaulttimeout(CONNECTION_TIMEOUT)
+        # Log full request data for debugging (excluding passwords)
+        safe_data = data.copy()
+        if 'password' in safe_data:
+            safe_data['password'] = '********'
+        logger.info(f"Verify connection request: {safe_data}")
         
-        # Create SSL context with verification options
-        context = ssl.create_default_context()
+        # Determine authentication method
+        auth_method = data.get('auth_method', 'password')
         
-        # Disable certificate verification for development/testing
-        # WARNING: In production, you should use proper certificate verification!
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        # Get IMAP server from input
+        imap_server = data.get('imap_server')
+        if not imap_server:
+            return jsonify({"status": "error", "message": "IMAP server is required"})
         
-        # IMAP Connection
-        logger.info(f"Connecting to {imap_server}")
-        mail = imaplib.IMAP4_SSL(imap_server, DEFAULT_IMAP_PORT, ssl_context=context)
-        
-        # Authentication based on method
+        # Handle OAuth authentication
         if auth_method == 'oauth':
-            # Use our helper function for OAuth2 authentication
-            authenticate_oauth2(mail, username, access_token)
+            # Get credentials from session
+            if 'jwt_token' in session and 'user_email' in session:
+                username = session.get('user_email', '')
+                token = session.get('jwt_token', {})
+                access_token = token.get('access_token', '')
+                
+                # Log token presence (not the actual token)
+                logger.info(f"OAuth token present: {bool(access_token)}")
+                logger.info(f"Session contains: {list(session.keys())}")
+                
+                # Try to use stored IMAP server if available
+                if 'imap_server' in session and not imap_server:
+                    imap_server = session['imap_server']
+                    
+                if not access_token:
+                    return jsonify({"status": "error", "message": "No active OAuth session found"})
+            else:
+                missing_keys = []
+                if 'jwt_token' not in session:
+                    missing_keys.append('jwt_token')
+                if 'user_email' not in session:
+                    missing_keys.append('user_email')
+                    
+                return jsonify({
+                    "status": "error", 
+                    "message": f"No active OAuth session found. Missing: {', '.join(missing_keys)}"
+                })
+            
+            logger.info(f"Verifying Auth0 OAuth connection for {username} on {imap_server}")
         else:
             # Traditional password authentication
-            mail.login(username, password)
+            username = data['username']
+            password = data['password']
+            logger.info(f"Verifying password connection for {username} on {imap_server}")
         
-        # Connection successful
-        logger.info(f"Connection verified for {username}")
-        mail.logout()
+        try:
+            # Set socket timeout - use a shorter timeout for the verification step
+            verification_timeout = min(CONNECTION_TIMEOUT, 10)  # Max 10 seconds for verification
+            socket.setdefaulttimeout(verification_timeout)
+            logger.info(f"Using connection timeout: {verification_timeout} seconds")
+            
+            # Create SSL context with verification options
+            context = ssl.create_default_context()
+            
+            # Disable certificate verification for development/testing
+            # WARNING: In production, you should use proper certificate verification!
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+            # IMAP Connection
+            logger.info(f"Connecting to {imap_server}")
+            connection_start = time.time()
+            
+            try:
+                mail = imaplib.IMAP4_SSL(imap_server, DEFAULT_IMAP_PORT, ssl_context=context)
+                logger.info(f"IMAP connection established in {time.time() - connection_start:.2f} seconds")
+            except socket.timeout:
+                logger.error(f"IMAP connection timeout after {time.time() - connection_start:.2f} seconds")
+                return jsonify({
+                    "status": "error", 
+                    "message": f"Connection to {imap_server} timed out after {verification_timeout} seconds. Please try again or check your network connection."
+                })
+            except socket.gaierror as ge:
+                logger.error(f"IMAP address resolution error: {str(ge)}")
+                return jsonify({
+                    "status": "error", 
+                    "message": f"Could not resolve server address '{imap_server}'. Please check the server name."
+                })
+            
+            # Authentication based on method
+            auth_start = time.time()
+            try:
+                if auth_method == 'oauth':
+                    # Use our helper function for OAuth2 authentication
+                    logger.info("Attempting OAuth2 authentication")
+                    authenticate_oauth2(mail, username, access_token)
+                    logger.info(f"OAuth2 authentication successful in {time.time() - auth_start:.2f} seconds")
+                else:
+                    # Traditional password authentication
+                    logger.info("Attempting password authentication")
+                    mail.login(username, password)
+                    logger.info(f"Password authentication successful in {time.time() - auth_start:.2f} seconds")
+            except imaplib.IMAP4.error as imap_error:
+                logger.error(f"IMAP authentication error: {str(imap_error)}")
+                error_message = str(imap_error)
+                if "AUTHENTICATE" in error_message:
+                    return jsonify({
+                        "status": "error", 
+                        "message": f"Authentication failed. For OAuth, you may need to re-login. Error: {error_message}"
+                    })
+                else:
+                    return jsonify({
+                        "status": "error", 
+                        "message": f"Authentication failed: {error_message}"
+                    })
+            except socket.timeout:
+                logger.error(f"Authentication timeout after {time.time() - auth_start:.2f} seconds")
+                return jsonify({
+                    "status": "error", 
+                    "message": f"Authentication timed out after {verification_timeout} seconds. Google servers may be experiencing high load."
+                })
+            
+            # Connection successful
+            logger.info(f"Connection verified for {username}")
+            mail.logout()
+            
+            total_time = time.time() - start_time
+            logger.info(f"Verification completed in {total_time:.2f} seconds")
+            
+            return jsonify({
+                "status": "success", 
+                "message": "Connection verified successfully",
+                "time_taken": f"{total_time:.2f} seconds"
+            })
         
-        return jsonify({
-            "status": "success", 
-            "message": "Connection verified successfully",
-            "time_taken": f"{(time.time() - start_time):.2f} seconds"
-        })
+        except Exception as connection_error:
+            logger.error(f"Connection error: {str(connection_error)}", exc_info=True)
+            
+            # Provide better error messages based on error type
+            error_message = str(connection_error)
+            if "timed out" in error_message.lower():
+                message = f"Connection timed out. Server may be busy or unreachable. Please try again later."
+            elif "certificate" in error_message.lower():
+                message = f"SSL certificate error. The server's security certificate could not be verified."
+            elif "authenticate" in error_message.lower():
+                message = f"Authentication failed. Please check your credentials or try re-authenticating with Google."
+            else:
+                message = error_message
+                
+            return jsonify({
+                "status": "error", 
+                "message": message,
+                "details": error_message
+            })
     
     except Exception as e:
-        logger.error(f"Error verifying connection: {str(e)}", exc_info=True)
+        logger.error(f"Error processing verification request: {str(e)}", exc_info=True)
         return jsonify({
             "status": "error", 
-            "message": str(e)
+            "message": f"An unexpected error occurred: {str(e)}"
         })
 
 @app.route('/get_folders', methods=['POST'])
@@ -1260,18 +1408,46 @@ def authenticate_oauth2(mail, username, access_token):
     if isinstance(username, bytes):
         username = username.decode('utf-8')
     
+    # Ensure access_token is not None or empty
+    if not access_token:
+        logger.error("OAuth access token is missing or empty")
+        raise ValueError("OAuth access token is required for authentication")
+    
     # Create the authentication string per XOAUTH2 spec
     auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
     auth_bytes = auth_string.encode('utf-8')
     
-    # Authenticate with XOAUTH2
-    logger.debug("Sending XOAUTH2 authentication")
-    mail._simple_command('AUTHENTICATE', 'XOAUTH2')
-    
-    # Send the base64 encoded credentials
-    mail.send(base64.b64encode(auth_bytes) + b'\r\n')
-    mail._check_response()
-    logger.debug("XOAUTH2 authentication successful")
+    try:
+        # Authenticate with XOAUTH2
+        logger.debug("Sending XOAUTH2 authentication")
+        mail._simple_command('AUTHENTICATE', 'XOAUTH2')
+        
+        # Send the base64 encoded credentials
+        encoded_auth = base64.b64encode(auth_bytes)
+        logger.debug(f"Sending encoded credentials (length: {len(encoded_auth)})")
+        mail.send(encoded_auth + b'\r\n')
+        
+        # Check response with timeout handling
+        try:
+            mail._check_response()
+            logger.debug("XOAUTH2 authentication successful")
+        except imaplib.IMAP4.error as e:
+            error_msg = str(e)
+            logger.error(f"XOAUTH2 authentication failed: {error_msg}")
+            
+            # Check for common OAuth errors
+            if "invalid_grant" in error_msg.lower():
+                logger.warning("OAuth token appears to be expired or invalid")
+                raise ValueError("Your Google authentication has expired. Please sign in again.")
+            elif "invalid_token" in error_msg.lower():
+                logger.warning("OAuth token is invalid")  
+                raise ValueError("Invalid authentication token. Please sign in again.")
+            else:
+                # Re-raise the original exception
+                raise
+    except socket.timeout:
+        logger.error("XOAUTH2 authentication timed out")
+        raise ValueError("Authentication timed out. Google servers may be busy. Please try again later.")
 
 def format_size(size_bytes):
     """Format size in bytes to human-readable format"""
