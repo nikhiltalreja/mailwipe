@@ -1432,31 +1432,40 @@
         
         // Load folders with statistics
         function loadFolders() {
-            const imapServer = document.getElementById('imap_server').value;
+            let imapServer;
             
             // Build request data based on auth method
-            const requestData = {
-                imap_server: imapServer
-            };
+            const requestData = {};
             
-            if (authMethod === 'oauth') {
-                // For OAuth, we need the provider
+            if (authMethod === 'gmail' || authMethod === 'oauth') {
+                // For Gmail/OAuth method
                 if (!oauthSuccess || !oauthProvider) {
-                    showConnectionStatus('error', 'OAuth authentication not completed');
+                    showConnectionStatus('error', 'Authentication not completed');
                     return;
                 }
                 
+                // Get IMAP server from the hidden field
+                imapServer = document.getElementById('imap_server_gmail').value;
+                
                 requestData.auth_method = 'oauth';
                 requestData.provider = oauthProvider;
-            } else {
-                // For password auth, we need username and password
+            } else if (authMethod === 'manual') {
+                // For manual auth, we need username, password and server
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
+                imapServer = document.getElementById('imap_server').value;
                 
                 requestData.auth_method = 'password';
                 requestData.username = username;
                 requestData.password = password;
+            } else {
+                // No method selected
+                showConnectionStatus('warning', 'Please select a connection method');
+                return;
             }
+            
+            // Add IMAP server to request data
+            requestData.imap_server = imapServer;
             
             const foldersLoading = document.getElementById('folders-loading');
             const foldersContainer = document.getElementById('folders-container');
@@ -1573,15 +1582,24 @@
                 item.className = 'folder-item';
                 item.style.animationDelay = `${0.1 * index}s`;
                 
+                // Use displayName if available, otherwise fallback to name for icon selection
+                const folderNameLower = (folder.displayName || folder.name).toLowerCase();
+                
                 let iconClass;
-                switch (folder.name) {
-                    case 'INBOX': iconClass = 'fa-inbox'; break;
-                    case 'Sent': iconClass = 'fa-paper-plane'; break;
-                    case 'Drafts': iconClass = 'fa-edit'; break;
-                    case 'Trash': iconClass = 'fa-trash-alt'; break;
-                    case 'Spam': iconClass = 'fa-ban'; break;
-                    case 'Archive': iconClass = 'fa-archive'; break;
-                    default: iconClass = 'fa-folder'; break;
+                if (folderNameLower.includes('inbox')) {
+                    iconClass = 'fa-inbox';
+                } else if (folderNameLower.includes('sent')) {
+                    iconClass = 'fa-paper-plane';
+                } else if (folderNameLower.includes('draft')) {
+                    iconClass = 'fa-edit';
+                } else if (folderNameLower.includes('trash') || folderNameLower.includes('bin')) {
+                    iconClass = 'fa-trash-alt';
+                } else if (folderNameLower.includes('spam') || folderNameLower.includes('junk')) {
+                    iconClass = 'fa-ban';
+                } else if (folderNameLower.includes('archive')) {
+                    iconClass = 'fa-archive';
+                } else {
+                    iconClass = 'fa-folder';
                 }
                 
                 // Use displayName if available, otherwise fallback to name
@@ -1637,13 +1655,18 @@
         // Generate review summary for step 3
         function generateReviewSummary() {
             let email;
-            if (authMethod === 'oauth') {
-                email = userEmail || `<span style="color: var(--accent);">Authenticated with ${oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1)}</span>`;
-            } else {
-                email = document.getElementById('username').value;
-            }
+            let server;
             
-            const server = document.getElementById('imap_server').value;
+            if (authMethod === 'gmail' || authMethod === 'oauth') {
+                email = userEmail || `<span style="color: var(--accent);">Authenticated with ${oauthProvider.charAt(0).toUpperCase() + oauthProvider.slice(1)}</span>`;
+                server = document.getElementById('imap_server_gmail').value;
+            } else if (authMethod === 'manual') {
+                email = document.getElementById('username').value;
+                server = document.getElementById('imap_server').value;
+            } else {
+                email = "Unknown";
+                server = "Unknown";
+            }
             const cutoffDate = formatDate(document.getElementById('cutoff_date').value);
             
             // Get both the actual folder names (for API) and display names (for UI)
