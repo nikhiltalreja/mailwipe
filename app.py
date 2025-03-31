@@ -452,6 +452,17 @@ def verify_connection():
     # Add a safeguard timeout for the entire route
     max_execution_time = 45  # seconds
     
+    # Check if Gmail API is available
+    use_gmail_api = False
+    try:
+        # Only import if needed to avoid dependency issues
+        import gmail_api_helper
+        use_gmail_api = True
+        logger.info("Gmail API helper is available")
+    except ImportError:
+        logger.warning("Gmail API helper is not available. Will use IMAP only.")
+        use_gmail_api = False
+    
     # Get request data
     try:
         data = request.json
@@ -518,23 +529,59 @@ def verify_connection():
         is_gmail = 'gmail.com' in imap_server.lower()
         lite_verification = data.get('lite_verification', False)
         
-        # For Gmail with OAuth, try token verification first
-        if is_gmail and auth_method == 'oauth' and lite_verification:
-            logger.info("Attempting lite verification for Gmail")
-            try:
-                token_verified = verify_google_token(access_token, username)
-                if token_verified:
-                    logger.info("Gmail OAuth token verified via REST API")
-                    total_time = time.time() - start_time
-                    return jsonify({
-                        "status": "success", 
-                        "message": "Google authentication verified successfully (lite verification)",
-                        "time_taken": f"{total_time:.2f} seconds",
-                        "verification_method": "rest_api",
-                        "is_gmail": True
-                    })
-            except Exception as token_error:
-                logger.warning(f"Token verification failed, falling back to IMAP: {str(token_error)}")
+        # For Gmail with OAuth, try to use Gmail API first (most reliable)
+        if is_gmail and auth_method == 'oauth':
+            if use_gmail_api:
+                # Try to use the Gmail API directly
+                logger.info("Attempting Gmail API verification")
+                try:
+                    # Verify the connection with Gmail API
+                    connection_success, error_message = gmail_api_helper.verify_gmail_connection(access_token)
+                    if connection_success:
+                        logger.info("Gmail API connection verified successfully")
+                        total_time = time.time() - start_time
+                        return jsonify({
+                            "status": "success", 
+                            "message": "Google authentication verified successfully via Gmail API",
+                            "time_taken": f"{total_time:.2f} seconds",
+                            "verification_method": "gmail_api",
+                            "is_gmail": True
+                        })
+                    else:
+                        # API connection failed, log the reason
+                        logger.warning(f"Gmail API verification failed: {error_message}")
+                        
+                        # Check if this is an authentication error
+                        if error_message and any(phrase in error_message.lower() for phrase in ['authentication', 'credentials', 'token', 'permission']):
+                            return jsonify({
+                                "status": "error",
+                                "message": error_message,
+                                "time_taken": f"{time.time() - start_time:.2f} seconds",
+                                "error_type": "auth_error",
+                                "is_gmail": True
+                            })
+                except Exception as api_error:
+                    logger.error(f"Error during Gmail API verification: {str(api_error)}")
+            
+            # If lite verification is requested or Gmail API failed, try token verification
+            if lite_verification or not use_gmail_api:
+                logger.info("Attempting lite verification for Gmail")
+                try:
+                    token_verified = verify_google_token(access_token, username)
+                    if token_verified:
+                        logger.info("Gmail OAuth token verified via REST API")
+                        total_time = time.time() - start_time
+                        return jsonify({
+                            "status": "success", 
+                            "message": "Google authentication verified successfully (lite verification)",
+                            "time_taken": f"{total_time:.2f} seconds",
+                            "verification_method": "rest_api",
+                            "is_gmail": True
+                        })
+                except Exception as token_error:
+                    logger.warning(f"Token verification failed, falling back to IMAP: {str(token_error)}")
+            
+            # If both Gmail API and token verification failed, continue to IMAP (more prone to timeouts)
         
         try:
             # Set appropriate timeout based on provider
@@ -814,6 +861,15 @@ def get_folders():
     start_time = time.time()
     data = request.json
     
+    # Check if we should use the Gmail API
+    use_gmail_api = False
+    try:
+        # Only import if needed to avoid dependency issues
+        import gmail_api_helper
+        use_gmail_api = True
+    except ImportError:
+        use_gmail_api = False
+    
     # Determine authentication method
     auth_method = data.get('auth_method', 'password')
     
@@ -850,7 +906,42 @@ def get_folders():
         mail_logger = logging.getLogger('imaplib')
         mail_logger.setLevel(logging.DEBUG)
     
+    # Check if we should use the Gmail API for Gmail accounts
+    is_gmail = imap_server and 'gmail' in imap_server.lower()
+    if is_gmail and auth_method == 'oauth' and use_gmail_api:
+        try:
+            logger.info("Using Gmail API to get folders")
+            # Get folders using the Gmail API
+            folders_result, error_message = gmail_api_helper.get_gmail_folders(access_token)
+            
+            if error_message:
+                logger.error(f"Error getting Gmail folders: {error_message}")
+                return jsonify({
+                    "status": "error",
+                    "message": f"Error getting Gmail folders: {error_message}"
+                })
+                
+            total_time = time.time() - start_time
+            logger.info(f"Retrieved {len(folders_result)} Gmail folders via API in {total_time:.2f} seconds")
+            
+            return jsonify({
+                "status": "success",
+                "folders": folders_result,
+                "totalMessages": sum(folder.get('messageCount', 0) for folder in folders_result),
+                "totalSize": sum(folder.get('size', 0) for folder in folders_result),
+                "totalSizeFormatted": format_size(sum(folder.get('size', 0) for folder in folders_result)),
+                "time_taken": f"{total_time:.2f} seconds",
+                "method": "gmail_api"
+            })
+        except Exception as api_error:
+            logger.error(f"Gmail API error: {str(api_error)}")
+            logger.info("Falling back to IMAP method")
+            # Fall through to IMAP method below
+    
     try:
+        # IMAP method for non-Gmail or if Gmail API failed
+        logger.info(f"Using IMAP to get folders from {imap_server}")
+        
         # Set socket timeout
         socket.setdefaulttimeout(CONNECTION_TIMEOUT)
         
