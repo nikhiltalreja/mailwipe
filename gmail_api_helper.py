@@ -16,12 +16,28 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.errors import HttpError
+from google.auth.transport.requests import Request
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Gmail API scopes needed
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# Custom credentials class that never attempts to refresh
+class NonRefreshingCredentials(Credentials):
+    """Custom credentials class that never attempts to refresh.
+    This is useful when we only have an access token without refresh capabilities."""
+    
+    def refresh(self, request):
+        """Override the refresh method to do nothing"""
+        logger.warning("Refresh attempted but ignored by NonRefreshingCredentials")
+        pass
+        
+    @property
+    def expired(self):
+        """Override to always return False so refresh is never attempted"""
+        return False
 
 def create_gmail_service(access_token: str) -> Tuple[Any, Optional[str]]:
     """
@@ -35,20 +51,19 @@ def create_gmail_service(access_token: str) -> Tuple[Any, Optional[str]]:
     """
     try:
         logger.info("Creating Gmail API service")
-        # Create credentials object from access token
-        # Set token_uri to None to prevent refresh attempts that would fail
-        creds = Credentials(
+        # Create our custom credentials object from access token
+        # This credentials object will never attempt to refresh
+        creds = NonRefreshingCredentials(
             token=access_token,
-            scopes=SCOPES,
-            token_uri=None  # This tells the client not to attempt refreshing
+            scopes=SCOPES
         )
         
-        # Build the Gmail API service
-        service = build('gmail', 'v1', credentials=creds)
+        # Build the Gmail API service with disable_cache=True to avoid cache issues
+        service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
         return service, None
     
     except HttpError as error:
-        error_message = f"Gmail API error: {error.reason}"
+        error_message = f"Gmail API error: {error.reason if hasattr(error, 'reason') else str(error)}"
         logger.error(error_message)
         return None, error_message
     
