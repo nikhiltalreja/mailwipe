@@ -370,16 +370,8 @@ def verify_connection():
         
         # Authentication based on method
         if auth_method == 'oauth':
-            # Convert username to bytes if not already
-            if isinstance(username, str):
-                username = username.encode('utf-8')
-                
-            # Format auth string for XOAUTH2
-            auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
-            
-            # Authenticate with XOAUTH2
-            mail._simple_command('AUTHENTICATE', 'XOAUTH2', lambda x: auth_string.encode('utf-8'))
-            mail._check_response()
+            # Use our helper function for OAuth2 authentication
+            authenticate_oauth2(mail, username, access_token)
         else:
             # Traditional password authentication
             mail.login(username, password)
@@ -461,16 +453,8 @@ def get_folders():
         
         # Authentication based on method
         if auth_method == 'oauth':
-            # Convert username to bytes if not already
-            if isinstance(username, str):
-                username = username.encode('utf-8')
-                
-            # Format auth string for XOAUTH2
-            auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
-            
-            # Authenticate with XOAUTH2
-            mail._simple_command('AUTHENTICATE', 'XOAUTH2', lambda x: auth_string.encode('utf-8'))
-            mail._check_response()
+            # Use our helper function for OAuth2 authentication
+            authenticate_oauth2(mail, username, access_token)
         else:
             # Traditional password authentication
             mail.login(username, password)
@@ -896,16 +880,8 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         # Authentication based on method
         if auth_method == 'oauth':
             logger.info(f"Using OAuth authentication for {username}")
-            # Convert username to bytes if not already
-            if isinstance(username, str):
-                username = username.encode('utf-8')
-                
-            # Format auth string for XOAUTH2
-            auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
-            
-            # Authenticate with XOAUTH2
-            mail._simple_command('AUTHENTICATE', 'XOAUTH2', lambda x: auth_string.encode('utf-8'))
-            mail._check_response()
+            # Use our helper function for OAuth2 authentication
+            authenticate_oauth2(mail, username, access_token)
         else:
             # Traditional password authentication
             logger.info(f"Using password authentication for {username}")
@@ -1274,6 +1250,28 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         # Update running status to error
         cleanup_running_status[task_id]["last_update"] = time.time()
         cleanup_running_status[task_id]["phase"] = "error"
+
+# Helper function to perform XOAUTH2 authentication
+def authenticate_oauth2(mail, username, access_token):
+    """Authenticate with IMAP server using XOAUTH2"""
+    import base64
+    
+    # Make sure username is a string for the formatting
+    if isinstance(username, bytes):
+        username = username.decode('utf-8')
+    
+    # Create the authentication string per XOAUTH2 spec
+    auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
+    auth_bytes = auth_string.encode('utf-8')
+    
+    # Authenticate with XOAUTH2
+    logger.debug("Sending XOAUTH2 authentication")
+    mail._simple_command('AUTHENTICATE', 'XOAUTH2')
+    
+    # Send the base64 encoded credentials
+    mail.send(base64.b64encode(auth_bytes) + b'\r\n')
+    mail._check_response()
+    logger.debug("XOAUTH2 authentication successful")
 
 def format_size(size_bytes):
     """Format size in bytes to human-readable format"""
