@@ -1482,6 +1482,11 @@
             let lastProgressUpdate = Date.now();
             let pendingProgressUpdates = [];
             
+            // Add variables to detect and handle progress stalling
+            let lastProgressValue = 5;
+            let progressStallCount = 0;
+            let lastStallCheckTime = Date.now();
+            
             const progressInterval = setInterval(() => {
                 const now = Date.now();
                 
@@ -1521,6 +1526,26 @@
                 // and it's been a while since the last server update
                 if (now - lastProgressUpdate > 2000 && targetProgress < 92) {
                     targetProgress += 0.03; // Very slow automatic increase
+                }
+                
+                // Handle stalled progress - specifically around 10% where the backend often hangs
+                if (now - lastStallCheckTime > 1000) { // Check every second
+                    lastStallCheckTime = now;
+                    
+                    // If progress is stuck at 10% for too long (5+ seconds), nudge it forward
+                    if (Math.floor(targetProgress) === 10 && Math.abs(targetProgress - lastProgressValue) < 0.1) {
+                        progressStallCount++;
+                        
+                        if (progressStallCount >= 5) {
+                            // Nudge progress to 11% to get unstuck
+                            targetProgress = 11;
+                            currentFolderStatus.innerHTML = `<span style="color: #ffb142;">Still working... this may take a moment</span>`;
+                            progressStallCount = 0;
+                        }
+                    } else {
+                        progressStallCount = 0;
+                        lastProgressValue = targetProgress;
+                    }
                 }
                 
                 // Update the UI, only if the display percentage changes
@@ -1635,6 +1660,19 @@
                             .catch(error => {
                                 console.error('Error polling progress:', error);
                                 // Don't stop polling on occasional network error
+                                
+                                // If the progress is at 10%, increment the stall counter
+                                // to help prevent getting stuck
+                                if (Math.floor(targetProgress) === 10) {
+                                    progressStallCount++;
+                                    
+                                    if (progressStallCount >= 3) {
+                                        // Network error while at 10%, nudge progress to prevent getting stuck
+                                        targetProgress = 11;
+                                        currentFolderStatus.innerHTML = `<span style="color: #ffb142;">Network issue, but still working...</span>`;
+                                        progressStallCount = 0;
+                                    }
+                                }
                             });
                     }, 1000);
                 } else {

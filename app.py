@@ -30,6 +30,9 @@ CONNECTION_TIMEOUT = 20  # seconds
 # In a production app, consider using Redis or another shared storage
 cleanup_progress = {}
 
+# Add a flag to track if process is running to prevent progress from getting stuck
+cleanup_running_status = {}
+
 @app.route('/')
 def index():
     return render_template('index.html', demo_mode=False, debug=app.debug)
@@ -421,6 +424,24 @@ def get_progress(task_id):
             "message": "Task not found"
         })
     
+    # Check if the task is running but hasn't advanced past 10%
+    if task_id in cleanup_running_status:
+        # If we're stuck in the workload estimation phase for too long, report it
+        current_time = time.time()
+        last_update_time = cleanup_running_status[task_id]['last_update']
+        current_progress = cleanup_progress[task_id]['overall_progress']
+        
+        # If it's been more than 30 seconds with progress < 12% and task not completed, 
+        # assume there's a stall in workload estimation
+        if (current_time - last_update_time > 30 and 
+            current_progress < 12 and 
+            not cleanup_progress[task_id].get('completed', False)):
+            
+            # Add a progress increment to show it's still working
+            cleanup_progress[task_id]['overall_progress'] += 0.5
+            # Update the timestamp to prevent excessive increments
+            cleanup_running_status[task_id]['last_update'] = current_time
+    
     return jsonify({
         "status": "success",
         "progress": cleanup_progress[task_id]
@@ -448,6 +469,7 @@ def clean_emails():
     task_id = str(uuid.uuid4())
     
     # Initialize progress tracking
+    current_time = time.time()
     cleanup_progress[task_id] = {
         "overall_progress": 0,
         "current_folder": "Initializing...",
@@ -458,7 +480,13 @@ def clean_emails():
         "total_size_deleted": 0,
         "results": {},
         "completed": False,
-        "start_time": time.time()
+        "start_time": current_time
+    }
+    
+    # Initialize running status tracking
+    cleanup_running_status[task_id] = {
+        "last_update": current_time,
+        "phase": "initializing"
     }
     
     # Start cleanup in a separate thread to allow progress tracking
@@ -504,13 +532,19 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         
         # Update progress after connection (5%)
         cleanup_progress[task_id]["overall_progress"] = 5
+        cleanup_running_status[task_id]["last_update"] = time.time()
+        cleanup_running_status[task_id]["phase"] = "connected"
         
         # First pass - estimate workload by counting messages in each folder
         logger.info(f"Estimating workload for {len(folders)} folders")
         cleanup_progress[task_id]["current_folder"] = "Estimating workload..."
+        cleanup_running_status[task_id]["phase"] = "estimating_workload_start"
         
         total_messages_to_process = 0
         folder_message_counts = {}
+        
+        # Set a timeout for the estimation phase
+        estimation_start_time = time.time()
         
         for folder_idx, folder in enumerate(folders):
             try:
@@ -564,7 +598,26 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
                 
                 # Search for emails before the cutoff date
                 search_command = f'(BEFORE "{cutoff_date}")'
-                status, messages = mail.search(None, search_command)
+                try:
+                    # Add a timeout check for the estimation phase
+                    current_time = time.time()
+                    if current_time - estimation_start_time > 60:  # 60 seconds max for estimation
+                        logger.warning(f"Estimation phase taking too long, proceeding with partial data for folder {folder}")
+                        cleanup_progress[task_id]["current_folder"] = f"Workload estimation is taking longer than expected..."
+                        # Force progress to 11% to avoid stuck at 10%
+                        cleanup_progress[task_id]["overall_progress"] = 11
+                        cleanup_running_status[task_id]["last_update"] = current_time
+                        raise TimeoutError("Estimation phase timeout")
+                        
+                    status, messages = mail.search(None, search_command)
+                except TimeoutError:
+                    status = 'NO'
+                    messages = [b'']
+                    logger.error(f"Timeout during search for folder {folder}")
+                except Exception as e:
+                    status = 'NO'
+                    messages = [b'']
+                    logger.error(f"Error during search for folder {folder}: {str(e)}")
                 
                 if status == 'OK':
                     message_ids = messages[0].split()
@@ -577,9 +630,21 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
             # Update progress (up to 10%)
             progress = 5 + (folder_idx + 1) / len(folders) * 5
             cleanup_progress[task_id]["overall_progress"] = progress
+            cleanup_running_status[task_id]["last_update"] = time.time()
+            cleanup_running_status[task_id]["phase"] = "estimating_workload"
         
         # Second pass - actually process each folder
         total_messages_processed = 0
+        
+        # Check if we have any messages to process
+        if total_messages_to_process == 0:
+            # Force progress beyond 10% to prevent frontend getting stuck
+            cleanup_progress[task_id]["overall_progress"] = 11
+            cleanup_running_status[task_id]["last_update"] = time.time()
+            logger.info("No messages found to process, but advancing progress to prevent UI getting stuck")
+            
+        # Set phase to processing
+        cleanup_running_status[task_id]["phase"] = "processing_start"
         
         for folder_idx, folder in enumerate(folders):
             try:
@@ -733,6 +798,8 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
                                 # or we're at the beginning/end stages
                                 if (raw_progress - current >= 0.5) or (current < 12) or (raw_progress > 90):
                                     cleanup_progress[task_id]["overall_progress"] = min(95, raw_progress)
+                                    cleanup_running_status[task_id]["last_update"] = time.time()
+                                    cleanup_running_status[task_id]["phase"] = "processing_folders"
                             
                             # Update running totals for real-time stats
                             cleanup_progress[task_id]["total_emails_deleted"] = total_emails_deleted + total_deleted
@@ -805,6 +872,10 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         cleanup_progress[task_id]["time_taken"] = f"{total_time:.2f} seconds"
         cleanup_progress[task_id]["results"] = results
         
+        # Update running status to completed
+        cleanup_running_status[task_id]["last_update"] = time.time()
+        cleanup_running_status[task_id]["phase"] = "completed"
+        
         # Keep results for a limited time (could add cleanup routine)
         
     except Exception as e:
@@ -814,6 +885,10 @@ def process_cleanup(task_id, username, password, imap_server, folders, cutoff_da
         cleanup_progress[task_id]["current_folder"] = "Error"
         cleanup_progress[task_id]["error"] = str(e)
         cleanup_progress[task_id]["completed"] = True
+        
+        # Update running status to error
+        cleanup_running_status[task_id]["last_update"] = time.time()
+        cleanup_running_status[task_id]["phase"] = "error"
 
 def format_size(size_bytes):
     """Format size in bytes to human-readable format"""
