@@ -1,4 +1,4 @@
-# app.py
+# app.py - with enhanced Gmail API integration
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from authlib.integrations.flask_client import OAuth
 import json

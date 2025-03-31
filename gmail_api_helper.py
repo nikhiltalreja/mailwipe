@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Updated Gmail API Helper with Full Access Scope
+Version: 1.1 - Enhanced token handling for Auth0
 """
 
 import os
