@@ -86,6 +86,8 @@ app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
 # Set up Auth0 client
 oauth = OAuth(app)
+
+# In your auth0 registration (around line 100)
 auth0 = oauth.register(
     'auth0',
     client_id=AUTH0_CLIENT_ID,
@@ -95,11 +97,10 @@ auth0 = oauth.register(
     authorize_url=f'https://{AUTH0_DOMAIN}/authorize',
     server_metadata_url=f'https://{AUTH0_DOMAIN}/.well-known/openid-configuration',
     client_kwargs={
-        'scope': 'openid profile email',  # Simplified scope, remove offline_access
-        'token_endpoint_auth_method': 'client_secret_post',  # Required for Auth0
-        'response_type': 'code'  # Explicit response type for authorization code flow
+        'scope': 'openid profile email https://mail.google.com/',  # Added Gmail scope
+        'token_endpoint_auth_method': 'client_secret_post',
+        'response_type': 'code'
     },
-    # Enable debug logging for troubleshooting
     debug=True
 )
 
@@ -477,48 +478,36 @@ def verify_connection():
             password = data['password']
             logger.info(f"Verifying password connection for {username} on {imap_server}")
         
-        # Setup to track if we need to fallback to REST API verification (for Gmail)
-        is_gmail = 'gmail' in imap_server.lower()
-        lite_verification = data.get('lite_verification', False)  # Check if client wants lite verification
+        # Check if this is Gmail
+        is_gmail = 'gmail.com' in imap_server.lower()
+        lite_verification = data.get('lite_verification', False)
         
-        # If this is Gmail and we have a token, try token verification first if lite_verification is requested
-        # This is much faster than IMAP and can tell us if the token is valid
+        # For Gmail with OAuth, try token verification first
         if is_gmail and auth_method == 'oauth' and lite_verification:
-            logger.info("Using lite verification for Gmail")
+            logger.info("Attempting lite verification for Gmail")
             try:
-                # Verify the token with Google's API
                 token_verified = verify_google_token(access_token, username)
                 if token_verified:
-                    # If token is valid, we can skip IMAP verification as it's likely to work
                     logger.info("Gmail OAuth token verified via REST API")
                     total_time = time.time() - start_time
                     return jsonify({
                         "status": "success", 
                         "message": "Google authentication verified successfully (lite verification)",
                         "time_taken": f"{total_time:.2f} seconds",
-                        "verification_method": "rest_api"
+                        "verification_method": "rest_api",
+                        "is_gmail": True
                     })
-                else:
-                    # If token verification failed, try IMAP as fallback
-                    logger.warning("Token verification failed, falling back to IMAP check")
             except Exception as token_error:
-                logger.error(f"Error during token verification: {str(token_error)}", exc_info=True)
-                # Continue to IMAP verification as fallback
+                logger.warning(f"Token verification failed, falling back to IMAP: {str(token_error)}")
         
         try:
-            # Gmail needs a longer timeout for verification than other providers
-            verification_timeout = 20  # Increase to 20 seconds for Gmail connections
-            if is_gmail:
-                verification_timeout = 30  # Even longer for Gmail
-                logger.info(f"Using extended timeout for Gmail: {verification_timeout} seconds")
+            # Set appropriate timeout based on provider
+            verification_timeout = 30 if is_gmail else 20
             socket.setdefaulttimeout(verification_timeout)
             logger.info(f"Using connection timeout: {verification_timeout} seconds")
             
-            # Create SSL context with verification options
+            # Create SSL context
             context = ssl.create_default_context()
-            
-            # Disable certificate verification for development/testing
-            # WARNING: In production, you should use proper certificate verification!
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             
@@ -534,10 +523,7 @@ def verify_connection():
                 
                 # Special handling for Gmail timeout
                 if is_gmail and auth_method == 'oauth':
-                    logger.info("Gmail connection timed out, trying alternative verification")
-                    
                     try:
-                        # Try to verify the token with Google directly
                         token_verified = verify_google_token(access_token, username)
                         if token_verified:
                             logger.info("Gmail OAuth token verified via REST API after IMAP timeout")
@@ -545,102 +531,158 @@ def verify_connection():
                                 "status": "success", 
                                 "message": "Google authentication verified successfully. IMAP connection timed out but your credentials are valid.",
                                 "time_taken": f"{time.time() - start_time:.2f} seconds",
-                                "verification_method": "rest_api"
+                                "verification_method": "rest_api",
+                                "is_gmail": True
                             })
                     except Exception as token_error:
                         logger.error(f"REST API verification failed after IMAP timeout: {str(token_error)}")
                 
                 return jsonify({
                     "status": "error", 
-                    "message": f"Connection to {imap_server} timed out after {verification_timeout} seconds. Please try again or check your network connection."
+                    "message": f"Connection to {imap_server} timed out after {verification_timeout} seconds. Please try again or check your network connection.",
+                    "is_gmail": is_gmail
                 })
             except socket.gaierror as ge:
                 logger.error(f"IMAP address resolution error: {str(ge)}")
                 return jsonify({
                     "status": "error", 
-                    "message": f"Could not resolve server address '{imap_server}'. Please check the server name."
+                    "message": f"Could not resolve server address '{imap_server}'. Please check the server name.",
+                    "is_gmail": is_gmail
                 })
             
             # Authentication based on method
             auth_start = time.time()
             try:
                 if auth_method == 'oauth':
-                    # Use our helper function for OAuth2 authentication
                     logger.info("Attempting OAuth2 authentication")
                     
-                    # If it's Gmail, use more retries due to commonly seen timeouts
-                    retries = 2 if is_gmail else 1
-                    logger.info(f"Using {retries} retries for OAuth2 authentication")
-                    
-                    authenticate_oauth2(mail, username, access_token, max_retries=retries)
-                    logger.info(f"OAuth2 authentication successful in {time.time() - auth_start:.2f} seconds")
+                    # Special handling for Gmail
+                    if is_gmail:
+                        logger.info("Using Gmail-specific authentication approach")
+                        try:
+                            # Close existing connection if any
+                            try:
+                                mail.shutdown()
+                            except:
+                                pass
+                                
+                            # Create new connection with our improved method
+                            new_mail = imaplib.IMAP4_SSL('imap.gmail.com', 993, timeout=30)
+                            
+                            # Prepare auth string
+                            auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
+                            auth_bytes = auth_string.encode('utf-8')
+                            encoded_auth = base64.b64encode(auth_bytes).decode('utf-8')
+                            
+                            # Authenticate
+                            new_mail._simple_command('AUTHENTICATE', 'XOAUTH2', encoded_auth)
+                            
+                            # Copy authenticated state to original mail object
+                            for attr in ['_cmd', '_tls_established', 'sock', 'file', 'state', '_mesg']:
+                                if hasattr(new_mail, attr):
+                                    setattr(mail, attr, getattr(new_mail, attr))
+                            
+                            logger.info("Gmail OAuth2 authentication successful")
+                        except Exception as e:
+                            logger.error(f"Gmail-specific authentication failed: {str(e)}")
+                            raise ValueError("Gmail authentication failed. Please try again or use password authentication.")
+                    else:
+                        # Standard OAuth for non-Gmail providers
+                        authenticate_oauth2(mail, username, access_token)
                 else:
                     # Traditional password authentication
                     logger.info("Attempting password authentication")
                     mail.login(username, password)
-                    logger.info(f"Password authentication successful in {time.time() - auth_start:.2f} seconds")
+                    
+                logger.info(f"Authentication successful in {time.time() - auth_start:.2f} seconds")
+                
+                # Verify capabilities (especially for OAuth)
+                if auth_method == 'oauth':
+                    try:
+                        status, caps = mail.capability()
+                        if status == 'OK':
+                            logger.info(f"Server capabilities: {caps}")
+                            if b'AUTH=XOAUTH2' not in caps and is_gmail:
+                                logger.warning("Server doesn't advertise XOAUTH2 capability but we authenticated anyway")
+                    except Exception as cap_error:
+                        logger.warning(f"Could not check server capabilities: {str(cap_error)}")
+                
+                # Test folder listing
+                test_start = time.time()
+                try:
+                    status, folders = mail.list()
+                    if status != 'OK':
+                        logger.warning(f"Folder listing failed: {folders}")
+                        raise ValueError("Could not list folders - authentication may be limited")
+                    logger.info(f"Folder listing successful in {time.time() - test_start:.2f} seconds")
+                except Exception as test_error:
+                    logger.warning(f"Folder listing test failed: {str(test_error)}")
+                    # Don't fail verification for this - just log it
+                
+                # Connection successful
+                logger.info(f"Connection fully verified for {username}")
+                mail.logout()
+                
+                total_time = time.time() - start_time
+                logger.info(f"Verification completed in {total_time:.2f} seconds")
+                
+                return jsonify({
+                    "status": "success", 
+                    "message": "Connection verified successfully",
+                    "time_taken": f"{total_time:.2f} seconds",
+                    "verification_method": "imap",
+                    "is_gmail": is_gmail
+                })
+                
             except imaplib.IMAP4.error as imap_error:
                 logger.error(f"IMAP authentication error: {str(imap_error)}")
                 error_message = str(imap_error)
-                if "AUTHENTICATE" in error_message:
-                    return jsonify({
-                        "status": "error", 
-                        "message": f"Authentication failed. For OAuth, you may need to re-login. Error: {error_message}"
-                    })
-                else:
-                    return jsonify({
-                        "status": "error", 
-                        "message": f"Authentication failed: {error_message}"
-                    })
+                
+                # Special handling for Gmail errors
+                if is_gmail:
+                    if "Invalid credentials" in error_message:
+                        error_message = "Invalid Google OAuth token. Please sign in again."
+                    elif "AUTHENTICATE" in error_message:
+                        error_message = "Gmail authentication failed. Make sure IMAP is enabled in your Gmail settings."
+                
+                return jsonify({
+                    "status": "error", 
+                    "message": f"Authentication failed: {error_message}",
+                    "details": "For Gmail, ensure IMAP is enabled in settings (Settings → Forwarding and POP/IMAP)",
+                    "is_gmail": is_gmail,
+                    "requires_reauth": "AUTHENTICATE" in error_message
+                })
             except socket.timeout:
                 logger.error(f"Authentication timeout after {time.time() - auth_start:.2f} seconds")
                 
-                # Special handling for Gmail timeout during authentication phase
+                # Special handling for Gmail timeout
                 if is_gmail and auth_method == 'oauth':
-                    logger.info("Gmail authentication timed out, trying alternative verification")
-                    
                     try:
-                        # Try to verify the token with Google directly
                         token_verified = verify_google_token(access_token, username)
                         if token_verified:
-                            logger.info("Gmail OAuth token verified via REST API after authentication timeout")
+                            logger.info("Gmail OAuth token verified via REST API after auth timeout")
                             return jsonify({
                                 "status": "success", 
                                 "message": "Google authentication verified successfully. IMAP authentication timed out but your credentials are valid.",
                                 "time_taken": f"{time.time() - start_time:.2f} seconds",
-                                "verification_method": "rest_api"
+                                "verification_method": "rest_api",
+                                "is_gmail": True
                             })
                     except Exception as token_error:
-                        logger.error(f"REST API verification failed after authentication timeout: {str(token_error)}")
+                        logger.error(f"REST API verification failed after auth timeout: {str(token_error)}")
                 
                 return jsonify({
                     "status": "error", 
-                    "message": f"Authentication timed out after {verification_timeout} seconds. Google servers may be experiencing high load."
+                    "message": f"Authentication timed out after {verification_timeout} seconds. Try again later.",
+                    "is_gmail": is_gmail
                 })
-            
-            # Connection successful
-            logger.info(f"Connection verified for {username}")
-            mail.logout()
-            
-            total_time = time.time() - start_time
-            logger.info(f"Verification completed in {total_time:.2f} seconds")
-            
-            return jsonify({
-                "status": "success", 
-                "message": "Connection verified successfully",
-                "time_taken": f"{total_time:.2f} seconds",
-                "verification_method": "imap"
-            })
         
         except Exception as connection_error:
             logger.error(f"Connection error: {str(connection_error)}", exc_info=True)
             
-            # Try alternative verification for Gmail with OAuth if we get timeout or other connection issue
+            # Try alternative verification for Gmail with OAuth
             if is_gmail and auth_method == 'oauth' and "timed out" in str(connection_error).lower():
-                logger.info("Connection error with Gmail, trying alternative verification")
-                
                 try:
-                    # Try to verify the token with Google directly
                     token_verified = verify_google_token(access_token, username)
                     if token_verified:
                         logger.info("Gmail OAuth token verified via REST API after connection error")
@@ -648,35 +690,39 @@ def verify_connection():
                             "status": "success", 
                             "message": "Google authentication verified successfully, but IMAP connection had issues. You may still be able to use the service.",
                             "time_taken": f"{time.time() - start_time:.2f} seconds",
-                            "verification_method": "rest_api"
+                            "verification_method": "rest_api",
+                            "is_gmail": True
                         })
                 except Exception as token_error:
                     logger.error(f"REST API verification failed after connection error: {str(token_error)}")
             
-            # Provide better error messages based on error type
+            # Provide better error messages
             error_message = str(connection_error)
             if "timed out" in error_message.lower():
-                message = f"Connection timed out. Server may be busy or unreachable. Please try again later."
+                message = f"Connection timed out. Server may be busy or unreachable."
             elif "certificate" in error_message.lower():
                 message = f"SSL certificate error. The server's security certificate could not be verified."
             elif "authenticate" in error_message.lower():
-                message = f"Authentication failed. Please check your credentials or try re-authenticating with Google."
+                message = f"Authentication failed. Please check your credentials."
             else:
                 message = error_message
                 
             return jsonify({
                 "status": "error", 
                 "message": message,
-                "details": error_message
+                "details": error_message,
+                "is_gmail": is_gmail,
+                "requires_reauth": "authenticate" in error_message.lower()
             })
     
     except Exception as e:
         logger.error(f"Error processing verification request: {str(e)}", exc_info=True)
         return jsonify({
             "status": "error", 
-            "message": f"An unexpected error occurred: {str(e)}"
+            "message": f"An unexpected error occurred: {str(e)}",
+            "is_gmail": 'imap_server' in locals() and 'gmail.com' in str(imap_server).lower()
         })
-
+        
 def verify_google_token(access_token, expected_email=None):
     """Verify a Google access token using the tokeninfo endpoint
     Returns True if valid, False otherwise"""
@@ -1661,184 +1707,72 @@ def gmail_oauth2_login(username, access_token):
         except:
             pass
 
+
 # Helper function to perform XOAUTH2 authentication with retries
 def authenticate_oauth2(mail, username, access_token, max_retries=1):
-    """Authenticate with IMAP server using XOAUTH2"""
+    """Authenticate with IMAP server using XOAUTH2 with Gmail-specific handling"""
     import base64
     import time
     import signal
+    import imaplib
     
-    # Identify if we're dealing with Gmail
+    # Identify server type
     server_type = getattr(mail, '_host', '').lower()
     is_gmail = 'gmail' in server_type
     
-    # For Gmail, increase the number of retries by default
-    if is_gmail and max_retries < 2:
-        max_retries = 2
-        logger.info(f"Increased retries to {max_retries} for Gmail")
-    
-    # Special handling for Gmail - always try our alternative method first for Gmail
-    # as it's more reliable with current Gmail IMAP server behavior
+    # For Gmail, always use our special handling
     if is_gmail:
-        logger.info("Using alternative Gmail authentication method for improved reliability")
         try:
-            # Close the existing connection if it exists
+            # Close existing connection if it exists
             try:
                 if getattr(mail, '_tls_established', False):
-                    mail.logout()
-            except:
-                logger.info("Could not properly close the existing connection")
-                
-            # Create a new connection with our specialized method
-            new_mail = gmail_oauth2_login(username, access_token)
-            
-            # Replace the mail object's internals with the authenticated one
-            # This is a bit of a hack, but it works for verification purposes
-            for attr_name in dir(new_mail):
-                if not attr_name.startswith('__'):
-                    try:
-                        setattr(mail, attr_name, getattr(new_mail, attr_name))
-                    except (AttributeError, TypeError):
-                        pass
-                        
-            logger.info("Successfully authenticated with Gmail using alternative method")
-            return
-        except Exception as e:
-            logger.error(f"Alternative Gmail authentication failed: {str(e)}")
-            logger.info("Falling back to standard XOAUTH2 authentication")
-            # Fall back to standard method if our alternative fails
-    
-    # Standard XOAUTH2 authentication with retries
-    # Make sure username is a string for the formatting
-    if isinstance(username, bytes):
-        username = username.decode('utf-8')
-    
-    # Ensure access_token is not None or empty
-    if not access_token:
-        logger.error("OAuth access token is missing or empty")
-        raise ValueError("OAuth access token is required for authentication")
-    
-    # Create the authentication string per XOAUTH2 spec
-    auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
-    auth_bytes = auth_string.encode('utf-8')
-    encoded_auth = base64.b64encode(auth_bytes)
-    
-    retries = 0
-    last_error = None
-    
-    # Define timeout handler for the overall authentication process
-    def auth_timeout_handler(signum, frame):
-        logger.error("Overall authentication process timed out")
-        raise TimeoutError("Authentication process timed out")
-    
-    # Set an overall timeout for the entire authentication process
-    # Only use this on Unix-like systems where SIGALRM is available
-    overall_timeout_set = False
-    try:
-        if hasattr(signal, 'SIGALRM'):
-            signal.signal(signal.SIGALRM, auth_timeout_handler)
-            signal.alarm(60)  # 60 seconds overall timeout
-            overall_timeout_set = True
-            logger.info("Set overall 60 second timeout for authentication process")
-    except Exception as e:
-        logger.warning(f"Could not set alarm for timeout: {str(e)}")
-    
-    try:
-        # Try with exponential backoff for retries
-        while retries <= max_retries:
-            if retries > 0:
-                # Add some backoff between retries
-                delay = 2 ** retries  # 2, 4, 8 seconds...
-                logger.info(f"Retrying XOAUTH2 authentication after {delay}s delay (attempt {retries}/{max_retries})")
-                time.sleep(delay)
-            
-            try:
-                # Authenticate with XOAUTH2
-                logger.info(f"Sending XOAUTH2 authentication command (attempt {retries+1}/{max_retries+1})")
-                mail._simple_command('AUTHENTICATE', 'XOAUTH2')
-                
-                # Send the base64 encoded credentials
-                logger.info(f"Sending encoded credentials (length: {len(encoded_auth)})")
-                mail.send(encoded_auth + b'\r\n')
-                
-                # Check response with timeout handling
-                try:
-                    logger.info("Waiting for XOAUTH2 authentication response...")
-                    mail._check_response()
-                    logger.info("XOAUTH2 authentication successful")
-                    return  # Success! Exit function
-                except imaplib.IMAP4.error as e:
-                    error_msg = str(e)
-                    logger.error(f"XOAUTH2 authentication failed: {error_msg}")
-                    
-                    # Check for common OAuth errors
-                    if "invalid_grant" in error_msg.lower():
-                        logger.warning("OAuth token appears to be expired or invalid")
-                        raise ValueError("Your Google authentication has expired. Please sign in again.")
-                    elif "invalid_token" in error_msg.lower():
-                        logger.warning("OAuth token is invalid")  
-                        raise ValueError("Invalid authentication token. Please sign in again.")
-                    else:
-                        # Store the error for potential retry
-                        last_error = e
-                        break  # Break out of retry loop for protocol errors (don't retry these)
-                        
-            except TimeoutError:
-                # Catch timeout from the signal handler
-                logger.warning(f"XOAUTH2 authentication process timed out completely")
-                last_error = TimeoutError("Authentication process timed out completely")
-                break  # Exit retry loop for complete timeouts
-            except socket.timeout:
-                # Only retry on socket timeout errors
-                logger.warning(f"XOAUTH2 authentication timed out (attempt {retries+1}/{max_retries+1})")
-                last_error = socket.timeout("Authentication timeout")
-                retries += 1
-                continue
-        
-        # If we got here, all retries failed or we had a non-timeout error
-        if isinstance(last_error, (socket.timeout, TimeoutError)):
-            logger.error(f"XOAUTH2 authentication timed out after {max_retries+1} attempts")
-            
-            # Special handling for Gmail timeouts - try a REST API verification as fallback
-            if is_gmail:
-                logger.info("Gmail timeout detected, attempting REST API verification instead")
-                try:
-                    # Verify token validity with Google's tokeninfo endpoint
-                    # This doesn't check IMAP access but verifies the token is valid
-                    from urllib.request import Request, urlopen
-                    import json
-                    
-                    # Use the tokeninfo endpoint to validate the token
-                    token_url = f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={access_token}"
-                    req = Request(token_url)
-                    
-                    # Set a short timeout for this request
-                    response = urlopen(req, timeout=10)
-                    token_data = json.loads(response.read().decode('utf-8'))
-                    
-                    # If we get here, token is valid but IMAP servers might be having issues
-                    if 'email' in token_data:
-                        logger.info(f"Token is valid for {token_data['email']}, but IMAP connection timed out")
-                        raise ValueError(f"Your Google account authentication is valid, but Gmail's IMAP servers are currently not responding. This is likely a temporary issue with Gmail. Please try again later or use password authentication.")
-                except Exception as api_error:
-                    logger.error(f"REST API verification also failed: {str(api_error)}")
-                    # Fall through to regular timeout error
-            
-            raise ValueError(f"Authentication with Gmail timed out after multiple attempts. Gmail's IMAP servers might be experiencing issues. Please try again later or use password authentication.")
-        elif last_error:
-            logger.error(f"XOAUTH2 authentication failed: {str(last_error)}")
-            raise last_error
-        else:
-            logger.error("XOAUTH2 authentication failed for unknown reason")
-            raise ValueError("Authentication failed for unknown reason")
-    
-    finally:
-        # Cancel the alarm if it was set
-        if overall_timeout_set:
-            try:
-                signal.alarm(0)
+                    mail.shutdown()
             except:
                 pass
+                
+            # Create new authenticated connection
+            new_mail = imaplib.IMAP4_SSL('imap.gmail.com', 993, timeout=30)
+            
+            # Prepare auth string
+            auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
+            auth_bytes = auth_string.encode('utf-8')
+            encoded_auth = base64.b64encode(auth_bytes).decode('utf-8')
+            
+            # Authenticate
+            new_mail._simple_command('AUTHENTICATE', 'XOAUTH2', encoded_auth)
+            
+            # Copy authenticated state to original mail object
+            for attr in ['_cmd', '_tls_established', 'sock', 'file', 'state', '_mesg']:
+                if hasattr(new_mail, attr):
+                    setattr(mail, attr, getattr(new_mail, attr))
+                    
+            logger.info("Gmail OAuth2 authentication successful")
+            return
+            
+        except Exception as e:
+            logger.error(f"Gmail-specific authentication failed: {str(e)}")
+            raise ValueError("Gmail authentication failed. Please try again or use password authentication.")
+    
+    # Standard XOAUTH2 for non-Gmail providers
+    try:
+        auth_string = f'user={username}\1auth=Bearer {access_token}\1\1'
+        auth_bytes = auth_string.encode('utf-8')
+        encoded_auth = base64.b64encode(auth_bytes)
+        
+        mail._simple_command('AUTHENTICATE', 'XOAUTH2')
+        mail.send(encoded_auth + b'\r\n')
+        mail._check_response()
+        logger.info("XOAUTH2 authentication successful")
+        
+    except imaplib.IMAP4.error as e:
+        error_msg = str(e)
+        if "invalid_grant" in error_msg.lower() or "invalid_token" in error_msg.lower():
+            logger.warning("OAuth token appears to be expired or invalid")
+            raise ValueError("Your authentication has expired. Please sign in again.")
+        else:
+            logger.error(f"XOAUTH2 authentication failed: {error_msg}")
+            raise ValueError(f"Authentication failed: {error_msg}")
+
 
 def format_size(size_bytes):
     """Format size in bytes to human-readable format"""
