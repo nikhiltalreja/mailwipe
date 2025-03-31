@@ -1343,18 +1343,101 @@
             
             showConnectionStatus('info', 'Connecting to server...');
             
+            // For Gmail with OAuth, we can use a faster verification method first
+            if (authMethod === 'gmail' && requestData.auth_method === 'oauth') {
+                // Add 'lite_verification' flag for Gmail to use faster tokeninfo API
+                requestData.lite_verification = true;
+                showConnectionStatus('info', 'Verifying Google account...');
+            }
+            
+            // Setup client-side timeout for verification
+            let verificationTimeout;
+            let timeoutSeconds = 45; // 45 second timeout for the entire operation
+            
+            // Set a longer timeout for Gmail
+            if (imapServer === 'imap.gmail.com') {
+                timeoutSeconds = 60; // Gmail needs more time
+            }
+            
+            // Show a countdown timer for verification
+            let remainingTime = timeoutSeconds;
+            const statusEl = document.getElementById('connection-status');
+            const updateTimer = () => {
+                if (remainingTime <= 15) { // Only show countdown when under 15 seconds
+                    statusEl.innerHTML = `<div>Connecting to server... (${remainingTime}s)</div>`;
+                }
+                remainingTime--;
+                
+                if (remainingTime <= 0) {
+                    clearInterval(timerInterval);
+                }
+            };
+            const timerInterval = setInterval(updateTimer, 1000);
+            
+            // Setup client-side timeout
+            verificationTimeout = setTimeout(() => {
+                // Clear the verification timer
+                clearInterval(timerInterval);
+                
+                // Show timeout message with alternatives
+                showConnectionStatus('error', 'Connection verification timed out. This could be due to server load or network issues.');
+                
+                // Enable the verify button
+                const verifyButton = document.getElementById('verify-button');
+                verifyButton.disabled = false;
+                verifyButton.innerHTML = '<i class="fas fa-redo"></i> Retry Connection';
+                
+                // For Gmail, show alternatives
+                if (imapServer === 'imap.gmail.com') {
+                    setTimeout(() => {
+                        const statusEl = document.getElementById('connection-status');
+                        statusEl.innerHTML += `
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(52, 152, 219, 0.1); 
+                                        border-left: 4px solid var(--info); border-radius: 4px; font-size: 0.9em;">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Connection timed out:</strong> Gmail's servers may be experiencing high load. 
+                                You can try these alternatives:
+                            </div>
+                            <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button type="button" onclick="verifyConnection()" 
+                                    style="flex: 1; background: var(--accent); padding: 8px 15px; font-size: 0.9em; min-width: 120px;">
+                                    <i class="fas fa-redo"></i> Retry Connection
+                                </button>
+                                <button type="button" onclick="switchToManualAuth()" 
+                                    style="flex: 1; background: var(--bg-tertiary); padding: 8px 15px; font-size: 0.9em; min-width: 120px;">
+                                    <i class="fas fa-exchange-alt"></i> Try Password Auth
+                                </button>
+                            </div>
+                        `;
+                    }, 500);
+                }
+            }, timeoutSeconds * 1000);
+            
             // Make real API call to verify connection
             fetch('/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestData)
             })
+            .finally(() => {
+                // Clear timeout and timer on completion
+                clearTimeout(verificationTimeout);
+                clearInterval(timerInterval);
+            })
             .then(response => response.json())
             .then(data => {
                 const verifyButton = document.getElementById('verify-button');
                 
                 if (data.status === 'success') {
-                    showConnectionStatus('success', 'Successfully connected to server!');
+                    const verificationMethod = data.verification_method || 'imap';
+                    const isLiteVerification = verificationMethod === 'rest_api';
+                    
+                    if (isLiteVerification) {
+                        showConnectionStatus('success', 'Google account verified! Connection to IMAP server will be made when needed.');
+                    } else {
+                        showConnectionStatus('success', 'Successfully connected to email server!');
+                    }
+                    
                     verifyButton.disabled = false;
                     verifyButton.innerHTML = '<i class="fas fa-check"></i> Connection Verified';
                     
@@ -1364,6 +1447,10 @@
                         loadFolders();
                     }, 800);
                 } else {
+                    // Enable the verify button
+                    verifyButton.disabled = false;
+                    verifyButton.innerHTML = '<i class="fas fa-link"></i> Verify Connection';
+                    
                     // Error path
                     let errorMessage = data.message || 'Unknown error';
                     let detailsMessage = data.details || '';
@@ -1392,23 +1479,29 @@
                                     <div style="margin-top: 10px; padding: 10px; background: rgba(52, 152, 219, 0.1); 
                                                 border-left: 4px solid var(--info); border-radius: 4px; font-size: 0.9em;">
                                         <i class="fas fa-info-circle"></i> 
-                                        <strong>Gmail OAuth Connection Note:</strong> Google's IMAP servers occasionally experience 
-                                        high load or temporary availability issues with OAuth authentication. 
-                                        This is normal and usually resolves by retrying.
+                                        <strong>Gmail Connection Note:</strong> Google's servers occasionally experience high load 
+                                        or temporary issues. You can retry the connection or try these alternatives:
                                     </div>
                                 `;
                             }
                             
-                            // Add retry button
+                            // Add retry and alternative buttons
                             statusEl.innerHTML += `
-                                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button type="button" onclick="verifyConnection()" 
-                                        style="flex: 1; background: var(--accent); padding: 8px 15px; font-size: 0.9em;">
+                                        style="flex: 1; background: var(--accent); padding: 8px 15px; font-size: 0.9em; min-width: 120px;">
                                         <i class="fas fa-redo"></i> Retry Connection
                                     </button>
                                     <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" 
-                                        style="flex: 1; background: #4285F4; padding: 8px 15px; font-size: 0.9em;">
+                                        style="flex: 1; background: #4285F4; padding: 8px 15px; font-size: 0.9em; min-width: 120px;">
                                         <i class="fab fa-google"></i> Re-authenticate
+                                    </button>
+                                </div>
+                                
+                                <div style="margin-top: 5px;">
+                                    <button type="button" onclick="switchToManualAuth()" 
+                                        style="background: var(--bg-tertiary); padding: 8px 15px; font-size: 0.9em; width: 100%; margin-top: 5px;">
+                                        <i class="fas fa-exchange-alt"></i> Try Password Authentication Instead
                                     </button>
                                 </div>
                             `;
@@ -1418,20 +1511,28 @@
                         setTimeout(() => {
                             const statusEl = document.getElementById('connection-status');
                             statusEl.innerHTML += `
-                                <div style="margin-top: 10px;">
+                                <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
                                     <button type="button" onclick="window.location.href='/auth/login?connection=google-oauth2'" 
-                                        style="background: #4285F4; padding: 5px 10px; font-size: 0.9em;">
+                                        style="background: #4285F4; padding: 8px 15px; font-size: 0.9em;">
                                         <i class="fab fa-google"></i> Re-authenticate with Google
+                                    </button>
+                                    <button type="button" onclick="switchToManualAuth()" 
+                                        style="background: var(--bg-tertiary); padding: 8px 15px; font-size: 0.9em; margin-top: 5px;">
+                                        <i class="fas fa-exchange-alt"></i> Try Password Authentication Instead
                                     </button>
                                 </div>
                             `;
                         }, 500);
                     }
-                    
-                    verifyButton.disabled = false;
-                    verifyButton.innerHTML = '<i class="fas fa-lock"></i> Retry Connection';
                 }
             })
+            .catch(error => {
+                console.error('Error verifying connection:', error);
+                const verifyButton = document.getElementById('verify-button');
+                verifyButton.disabled = false;
+                verifyButton.innerHTML = '<i class="fas fa-link"></i> Verify Connection';
+                showConnectionStatus('error', 'Connection failed: ' + error.message);
+            });
             .catch(error => {
                 console.error('Error:', error);
                 showConnectionStatus('error', 'Connection failed. Please check your network connection.');
@@ -2435,6 +2536,29 @@
             } else {
                 return `${(sizeInKB / 1048576).toFixed(1)} GB`;
             }
+        }
+        
+        // Helper function to switch to manual auth when OAuth is having issues
+        function switchToManualAuth() {
+            authMethod = 'manual';
+            
+            // Update UI to show active button
+            const gmailBtn = document.getElementById('gmail-btn');
+            const manualBtn = document.getElementById('manual-btn');
+            
+            // Show manual section, hide Gmail section
+            document.getElementById('gmail-auth-section').style.display = 'none';
+            document.getElementById('manual-auth-section').style.display = 'block';
+            
+            // Update button styles
+            gmailBtn.style.background = 'var(--bg-tertiary)';
+            gmailBtn.style.boxShadow = 'none';
+            manualBtn.style.background = 'var(--bg-secondary)';
+            manualBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.25)';
+            
+            // Clear any existing error messages
+            document.getElementById('connection-status').innerHTML = '';
+            showConnectionStatus('info', 'Switched to email & password authentication. Please enter your credentials.');
         }
     </script>
 </body>
