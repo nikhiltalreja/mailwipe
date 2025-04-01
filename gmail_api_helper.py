@@ -1,135 +1,97 @@
-#!/usr/bin/env python3
-"""
-Gmail API Helper with IMAP Fallback (Full Scope)
-Version: 2.0 - Auth0 Integration with Dual Authentication Paths
-"""
-
+# gmail_api_helper.py
 import imaplib
 import logging
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Tuple, Optional, Any
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
-# Full access scope for testing (keep for now)
+# Keep full scope for testing but add expiration safeguards
 SCOPES = ['https://mail.google.com/']
 
-class NonRefreshingCredentials(Credentials):
-    """Enhanced credentials with expiry tracking"""
-    def __init__(self, token: str, expires_in: int = 3600):
-        super().__init__(
-            token=token,
-            refresh_token="auth0_dummy_refresh",
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id="auth0_dummy_client",
-            client_secret="auth0_dummy_secret",
-            scopes=SCOPES
-        )
-        self._expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+class SecureAuth0Credentials(Credentials):
+    """Enhanced credential handling with expiration safeguards"""
+    def __init__(self, token: str, expires_at: float):
+        super().__init__(token=token)
+        self.expires_at = datetime.utcfromtimestamp(expires_at)
+        self.token = token  # Explicit storage
+        logger.info(f"Token initialized, expires: {self.expires_at.isoformat()}")
         
     def refresh(self, request):
-        logger.error("Refresh attempted on non-refreshable token")
-        raise ValueError("Reauthenticate through Auth0 instead")
-
+        """Block refresh attempts with clear guidance"""
+        logger.critical("Auth0 token refresh attempted - initiate reauthentication")
+        raise ValueError("Session expired - please reauthenticate")
+    
     @property
     def valid(self) -> bool:
-        return bool(self.token) and datetime.utcnow() < self._expiry
+        """Check with 5-minute buffer for token expiration"""
+        return bool(self.token) and (datetime.utcnow() < self.expires_at - timedelta(minutes=5))
 
-def verify_gmail_connection(access_token: str) -> Tuple[bool, str]:
-    """Verify Gmail API connectivity with full scope"""
+def create_gmail_service(token: str, expires_at: float) -> Tuple[Any, Optional[str]]:
+    """Create Gmail service with expiration validation"""
     try:
-        creds = NonRefreshingCredentials(access_token)
-        service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
-        service.users().labels().list(userId='me').execute()
-        return True, "Gmail API connection successful"
-    except HttpError as e:
-        error_msg = f"Gmail API Error ({e.resp.status}): {e._get_reason()}"
-        return False, error_msg
+        creds = SecureAuth0Credentials(token, expires_at)
+        if not creds.valid:
+            raise ValueError("Token expired or invalid - requires reauthentication")
+            
+        return build('gmail', 'v1', credentials=creds, cache_discovery=False), None
+        
     except Exception as e:
-        return False, f"General API error: {str(e)}"
+        logger.error(f"Service creation failed: {str(e)}")
+        return None, str(e)
 
-def imap_oauth_connect(email: str, access_token: str) -> Optional[imaplib.IMAP4_SSL]:
-    """IMAP fallback with XOAUTH2 authentication"""
+def connect_imap_oauth(email: str, token: str) -> Tuple[Optional[imaplib.IMAP4_SSL], Optional[str]]:
+    """IMAP fallback with robust XOAUTH2 handling"""
     try:
         imap = imaplib.IMAP4_SSL('imap.gmail.com', 993)
-        auth_string = f"user={email}\x01auth=Bearer {access_token}\x01\x01"
-        imap.authenticate('XOAUTH2', lambda x: auth_string.encode())
-        return imap
+        auth_str = f"user={email}\x01auth=Bearer {token}\x01\x01".encode()
+        imap.authenticate('XOAUTH2', lambda x: auth_str)
+        return imap, None
+    except imaplib.IMAP4.error as e:
+        error = f"IMAP Error: {str(e)}. Check token scopes and expiration."
+        logger.error(error)
+        return None, error
     except Exception as e:
-        logger.error(f"IMAP fallback failed: {str(e)}")
-        return None
+        error = f"IMAP Connection Failed: {str(e)}"
+        logger.error(error)
+        return None, error
 
-def verify_connection(email: str, access_token: str) -> bool:
-    """Dual verification system with fallback"""
-    # Try Gmail API first
-    api_success, _ = verify_gmail_connection(access_token)
-    if api_success:
-        logger.info("Gmail API verification succeeded")
-        return True
+def verify_connection(email: str, token: str, expires_at: float) -> Tuple[bool, str]:
+    """Comprehensive connection verification with failover"""
+    # First attempt: Gmail API
+    service, error = create_gmail_service(token, expires_at)
+    if service:
+        try:
+            service.users().labels().list(userId='me').execute()
+            return True, "Gmail API verification successful"
+        except HttpError as e:
+            logger.error(f"Gmail API Error: {e.resp.status} {e._get_reason()}")
     
-    # Fallback to IMAP OAuth
-    logger.warning("Falling back to IMAP authentication")
-    imap = imap_oauth_connect(email, access_token)
+    # Fallback: IMAP OAuth
+    imap, imap_error = connect_imap_oauth(email, token)
     if imap:
         imap.logout()
-        logger.info("IMAP verification succeeded")
-        return True
-    
-    logger.error("All authentication methods failed")
-    return False
+        return True, "IMAP verification successful"
+        
+    # Final failure analysis
+    error_msg = "All verification methods failed:\n"
+    error_msg += f"- Gmail API: {error}\n" if error else ""
+    error_msg += f"- IMAP: {imap_error}" if imap_error else ""
+    return False, error_msg
 
-def batch_cleanup(access_token: str, email: str, query: str = "older_than:1y") -> dict:
-    """Unified cleanup with dual authentication support"""
+def manual_token_check(token: str) -> dict:
+    """Manual token verification for debugging"""
     try:
-        # First try Gmail API
-        creds = NonRefreshingCredentials(access_token)
-        service = build('gmail', 'v1', credentials=creds)
-        messages = service.users().messages().list(
-            userId='me', q=query, maxResults=500).execute().get('messages', [])
-        
-        if messages:
-            service.users().messages().batchDelete(
-                userId='me', body={'ids': [m['id'] for m in messages]}
-            ).execute()
-            return {'method': 'api', 'count': len(messages), 'error': None}
-            
-    except Exception as api_error:
-        logger.warning(f"Gmail API failed: {str(api_error)} - Trying IMAP")
-        
-        # IMAP Fallback
-        try:
-            imap = imap_oauth_connect(email, access_token)
-            if not imap:
-                raise ConnectionError("IMAP connection failed")
-                
-            imap.select('INBOX')
-            status, data = imap.search(None, query.replace('_than:', ' '))
-            if status == 'OK':
-                message_ids = data[0].split()
-                if message_ids:
-                    imap.store(','.join(m.decode() for m in message_ids), '+FLAGS', '\\Deleted')
-                    imap.expunge()
-                    return {'method': 'imap', 'count': len(message_ids), 'error': None}
-            return {'method': 'imap', 'count': 0, 'error': 'No messages found'}
-            
-        except Exception as imap_error:
-            return {'method': 'failed', 'count': 0, 
-                    'error': f"API: {api_error} | IMAP: {imap_error}"}
-
-    return {'method': 'noop', 'count': 0, 'error': 'No messages processed'}
-
-# Example usage
-if __name__ == "__main__":
-    # Test with Auth0 token
-    access_token = "your_auth0_access_token"
-    email = "user@example.com"
-    
-    if verify_connection(email, access_token):
-        result = batch_cleanup(access_token, email)
-        print(f"Deleted {result['count']} emails via {result['method']}")
-    else:
-        print("All authentication methods failed")
+        # Decode JWT without validation
+        decoded = json.loads(base64.b64decode(token.split('.')[1] + "==="))
+        return {
+            "expires_at": datetime.utcfromtimestamp(decoded['exp']).isoformat(),
+            "scopes": decoded.get('scope', '').split(),
+            "email": decoded.get('email')
+        }
+    except Exception as e:
+        return {"error": f"Token decode failed: {str(e)}"}
