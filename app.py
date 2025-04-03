@@ -711,7 +711,11 @@ def get_folders():
             # Log error but don't necessarily fail if API worked previously
             imap_err_msg = f"IMAP Error getting folders: {str(e)}"
             logger.error(imap_err_msg, exc_info=True)
-            if imap_conn: try: imap_conn.logout() catch: pass
+            if imap_conn: 
+                try: 
+                    imap_conn.logout() 
+                except: 
+                    pass
             # If API also failed, this becomes the primary error
             if method_used != "gmail_api":
                  error_message = imap_err_msg # Set IMAP error as the main one
