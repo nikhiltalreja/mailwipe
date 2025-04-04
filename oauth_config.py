@@ -9,8 +9,8 @@ AUTH0_CLIENT_SECRET = "rcGFLKlXmkj6qH5iScGYwQSx-DNW9NSyrNMv1MPFhmZPwD_EzVDwjc3Mh
 # If testing locally, use http://localhost:5050/auth/callback
 # For production, use the Railway URL
 # Comment out the production URL when testing locally
-# AUTH0_CALLBACK_URL = "https://web-production-99c5.up.railway.app/auth/callback"
-AUTH0_CALLBACK_URL = "http://localhost:5050/auth/callback"
+AUTH0_CALLBACK_URL = "https://web-production-99c5.up.railway.app/auth/callback"
+# AUTH0_CALLBACK_URL = "http://localhost:5050/auth/callback"
                       
 
 # IMPORTANT CONFIGURATION NOTES:
