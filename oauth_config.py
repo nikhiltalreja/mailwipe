@@ -8,7 +8,10 @@ AUTH0_CLIENT_SECRET = "rcGFLKlXmkj6qH5iScGYwQSx-DNW9NSyrNMv1MPFhmZPwD_EzVDwjc3Mh
 # Make sure this exactly matches the URL configured in Auth0 dashboard
 # If testing locally, use http://localhost:5050/auth/callback
 # For production, use the Railway URL
-AUTH0_CALLBACK_URL = "https://web-production-99c5.up.railway.app/auth/callback"
+# Comment out the production URL when testing locally
+# AUTH0_CALLBACK_URL = "https://web-production-99c5.up.railway.app/auth/callback"
+AUTH0_CALLBACK_URL = "http://localhost:5050/auth/callback"
+                      
 
 # IMPORTANT CONFIGURATION NOTES:
 # 1. In Auth0 dashboard, set the application type to "Regular Web Application"
