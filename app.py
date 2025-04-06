@@ -84,8 +84,14 @@ else:
 
 # --- Flask App Setup ---
 app = Flask(__name__)
+
+# Configure root logger first
+logger = logging.getLogger(__name__)
+
 # Railway-optimized session configuration
-app.secret_key = os.environ['SECRET_KEY'] # Must be set in Railway vars
+if 'SECRET_KEY' not in os.environ and not os.environ.get('RAILWAY_ENVIRONMENT'):
+    logger.warning("SECRET_KEY not set - generating temporary key for development")
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
