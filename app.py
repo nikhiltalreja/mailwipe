@@ -351,14 +351,19 @@ def login():
 def callback():
     """Handle Auth0 callback after login including CSRF protection"""
     try:
-        logger.debug(f"Callback session state - nonce: {session.get('nonce')}, state: {session.get('state')}")
-        logger.debug(f"Callback session permanent: {session.permanent}")
+        # Debug session state before validation
+        logger.debug(f"Callback session - Keys: {list(session.keys())}")
+        logger.debug(f"Session config: {app.config.get('SESSION_COOKIE_DOMAIN')}")
         
         # Validate CSRF protection params
         state = request.args.get('state')
-        if not state or 'nonce' not in session or 'state' not in session:
-            logger.error(f"Missing auth params. Has state: {bool(state)}, session nonce: {'nonce' in session}, session state: {'state' in session}")
-            logger.error(f"Full session at callback: {dict(session)}")
+        session_state = session.get('state')
+        
+        if not state or not session_state or 'nonce' not in session:
+            logger.error(f"Missing auth params. Has state: {bool(state)}, session state: {bool(session_state)}, session nonce: {'nonce' in session}")
+            logger.error(f"Request URL: {request.url}")
+            logger.error(f"Session ID: {session.sid if 'sid' in session else 'None'}")
+            logger.error(f"Session contents: {dict(session)}")
             return render_template('error.html',
                 error="Session expired or invalid. Please try again.",
                 auth_error=True)
