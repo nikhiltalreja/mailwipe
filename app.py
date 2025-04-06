@@ -307,7 +307,7 @@ def login():
     session['state'] = secrets.token_urlsafe(16)
     redirect_uri = AUTH0_CALLBACK_URL
     logger.debug(f"Session at login - nonce: {session['nonce']}, state: {session['state']}")
-    logger.debug(f"Session ID: {session.sid}, Permanent: {session.permanent}")
+    logger.debug(f"Session permanent: {session.permanent}")
     # Ensure secure session configuration
     if not app.secret_key or app.secret_key == 'your-secret-key':
         app.secret_key = secrets.token_hex(32)
