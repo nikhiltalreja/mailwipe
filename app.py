@@ -280,15 +280,25 @@ def get_user_info():
 @app.route('/auth/login')
 def login():
     """Redirect to Auth0 login page"""
-    # Generate nonce for CSRF protection
+    # Generate CSRF protection values
     session['nonce'] = secrets.token_urlsafe(16)
+    session['state'] = secrets.token_urlsafe(16)
     redirect_uri = AUTH0_CALLBACK_URL
-    logger.info(f"Initiating Auth0 login, redirecting to: {redirect_uri}")
+    logger.debug(f"Session configuration - secret_key set: {'SECRET_KEY' in app.config}, session type: {type(session)}")
+    auth_params = {
+        'redirect_uri': redirect_uri,
+        'nonce': session['nonce'],
+        'state': session['state'],
+    }
+    logger.debug(f"Auth params being sent to Auth0: {auth_params}")
+    logger.debug(f"Session state before redirect: {session['state']}")
+    logger.info(f"Initiating Auth0 login. Nonce: {session['nonce'][:6]}... State: {session['state'][:6]}...")
 
     # Parameters for Auth0 authorize endpoint
     auth_params = {
         'redirect_uri': redirect_uri,
         'nonce': session['nonce'],
+        'state': session['state'],
         # audience might be needed depending on Auth0 config, test without first
         # 'audience': f'https://{AUTH0_DOMAIN}/api/v2/'
     }
@@ -309,12 +319,16 @@ def callback():
     try:
         # Validate CSRF protection params
         state = request.args.get('state')
-        if not state or 'nonce' not in session:
-            logger.error("Missing state parameter or session nonce in callback")
+        if not state or 'nonce' not in session or 'state' not in session:
+            logger.error(f"Missing auth params. Has state: {bool(state)}, session nonce: {'nonce' in session}, session state: {'state' in session}")
             return render_template('error.html', error="Invalid authentication request. Please try again.")
 
-        # Check if state matches session (if stored) for additional CSRF protection
-        logger.info(f"Auth0 callback received. State: {state}, Code: {'present' if request.args.get('code') else 'missing'}")
+        # Verify state matches exactly
+        if state != session['state']:
+            logger.error(f"State mismatch! Session: {session['state'][:6]}..., Received: {state[:6]}...")
+            return render_template('error.html', error="Security validation failed. Please try again.")
+            
+        logger.info(f"Auth0 callback validated. State: {state[:6]}..., Code: {'present' if request.args.get('code') else 'missing'}")
 
         # Check for errors from Auth0
         if 'error' in request.args:
