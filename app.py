@@ -84,7 +84,17 @@ else:
 
 # --- Flask App Setup ---
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
+# Railway-optimized session configuration
+app.secret_key = os.environ['SECRET_KEY'] # Must be set in Railway vars
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=15),
+    # Railway-specific settings
+    SESSION_COOKIE_DOMAIN='.railway.app',
+    SERVER_NAME='web-production-99c5.up.railway.app'
+)
 
 # --- Auth0 Client Setup ---
 oauth = OAuth(app)
@@ -193,11 +203,15 @@ def demo():
 
 @app.route('/health')
 def health_check():
-    """Simple health check endpoint"""
+    """Extended health check endpoint"""
     try:
         process = psutil.Process()
         memory_info = process.memory_info()
-        return jsonify({
+        env_vars = {
+            'SECRET_KEY_SET': 'SECRET_KEY' in os.environ,
+            'AUTH0_VARS_SET': all(k in os.environ for k in ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_CLIENT_SECRET']),
+        }
+        response_data = {
             "status": "ok", "version": "1.2", "timestamp": datetime.now().isoformat(),
             "auth_configured": bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET),
             "python_version": platform.python_version(),
@@ -205,8 +219,10 @@ def health_check():
             "uptime_seconds": int(time.time() - process.create_time()),
             "gmail_helper": GMAIL_HELPER_AVAILABLE,
             "active_threads": threading.active_count(),
-            "cleanup_tasks": len(cleanup_progress) # Number of tasks tracked
-        })
+            "cleanup_tasks": len(cleanup_progress),
+            "env_vars": env_vars
+        }
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Error in health check: {str(e)}")
         return jsonify({"status": "degraded", "error": str(e)})
@@ -284,7 +300,18 @@ def login():
     session['nonce'] = secrets.token_urlsafe(16)
     session['state'] = secrets.token_urlsafe(16)
     redirect_uri = AUTH0_CALLBACK_URL
-    logger.debug(f"Session configuration - secret_key set: {'SECRET_KEY' in app.config}, session type: {type(session)}")
+    logger.debug(f"Session at login - nonce: {session['nonce']}, state: {session['state']}")
+    logger.debug(f"Session ID: {session.sid}, Permanent: {session.permanent}")
+    # Ensure secure session configuration
+    if not app.secret_key or app.secret_key == 'your-secret-key':
+        app.secret_key = secrets.token_hex(32)
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=15)
+    )
+    logger.debug(f"Session config - secret: {bool(app.secret_key)}, cookie: {app.config['SESSION_COOKIE_NAME']}")
     auth_params = {
         'redirect_uri': redirect_uri,
         'nonce': session['nonce'],
@@ -299,9 +326,9 @@ def login():
         'redirect_uri': redirect_uri,
         'nonce': session['nonce'],
         'state': session['state'],
-        # audience might be needed depending on Auth0 config, test without first
-        # 'audience': f'https://{AUTH0_DOMAIN}/api/v2/'
     }
+    logger.debug(f"Auth callback configured with state: {session['state']}")
+    logger.debug(f"Full session at login endpoint: {dict(session)}")
 
     try:
         # Log the constructed authorize URL before redirecting
@@ -317,11 +344,17 @@ def login():
 def callback():
     """Handle Auth0 callback after login including CSRF protection"""
     try:
+        logger.debug(f"Callback session state - nonce: {session.get('nonce')}, state: {session.get('state')}")
+        logger.debug(f"Callback session ID: {session.sid}, Permanent: {session.permanent}")
+        
         # Validate CSRF protection params
         state = request.args.get('state')
         if not state or 'nonce' not in session or 'state' not in session:
             logger.error(f"Missing auth params. Has state: {bool(state)}, session nonce: {'nonce' in session}, session state: {'state' in session}")
-            return render_template('error.html', error="Invalid authentication request. Please try again.")
+            logger.error(f"Full session at callback: {dict(session)}")
+            return render_template('error.html',
+                error="Session expired or invalid. Please try again.",
+                auth_error=True)
 
         # Verify state matches exactly
         if state != session['state']:
