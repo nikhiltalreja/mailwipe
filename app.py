@@ -306,18 +306,11 @@ def login():
     session['nonce'] = secrets.token_urlsafe(16)
     session['state'] = secrets.token_urlsafe(16)
     redirect_uri = AUTH0_CALLBACK_URL
-    logger.debug(f"Session at login - nonce: {session['nonce']}, state: {session['state']}")
-    logger.debug(f"Session permanent: {session.permanent}")
-    # Ensure secure session configuration
-    if not app.secret_key or app.secret_key == 'your-secret-key':
-        app.secret_key = secrets.token_hex(32)
-    app.config.update(
-        SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE='Lax',
-        PERMANENT_SESSION_LIFETIME=timedelta(minutes=15)
-    )
-    logger.debug(f"Session config - secret: {bool(app.secret_key)}, cookie: {app.config['SESSION_COOKIE_NAME']}")
+    logger.debug(f"Login session - nonce: {session['nonce']}, state: {session['state']}")
+    
+    # Debug session persistence
+    logger.debug(f"Session ID exists: {'session_id' in session}")
+    logger.debug(f"Full session at login: {dict(session)}")
     auth_params = {
         'redirect_uri': redirect_uri,
         'nonce': session['nonce'],
