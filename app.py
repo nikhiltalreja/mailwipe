@@ -351,7 +351,7 @@ def callback():
     """Handle Auth0 callback after login including CSRF protection"""
     try:
         logger.debug(f"Callback session state - nonce: {session.get('nonce')}, state: {session.get('state')}")
-        logger.debug(f"Callback session ID: {session.sid}, Permanent: {session.permanent}")
+        logger.debug(f"Callback session permanent: {session.permanent}")
         
         # Validate CSRF protection params
         state = request.args.get('state')
