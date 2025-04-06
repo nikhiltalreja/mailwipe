@@ -40,3 +40,4 @@ Thumbs.db
 # Application specific
 *.log
 .envoauth_config.py
+oauth_config.py
