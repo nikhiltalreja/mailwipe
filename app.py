@@ -88,7 +88,7 @@ app = Flask(__name__)
 # Configure root logger first
 logger = logging.getLogger(__name__)
 
-# Railway-optimized session configuration
+# Enhanced session configuration for Railway
 if 'SECRET_KEY' not in os.environ and not os.environ.get('RAILWAY_ENVIRONMENT'):
     logger.warning("SECRET_KEY not set - generating temporary key for development")
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -97,10 +97,18 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=15),
-    # Railway-specific settings
     SESSION_COOKIE_DOMAIN='.railway.app',
-    SERVER_NAME='web-production-99c5.up.railway.app'
+    SERVER_NAME='web-production-99c5.up.railway.app',
+    # Additional session security
+    SESSION_REFRESH_EACH_REQUEST=True,
+    SESSION_COOKIE_NAME='mailwipe_session',
+    SESSION_COOKIE_PATH='/',
+    SESSION_TYPE='filesystem'
 )
+
+# Verify session config
+logger.info(f"Session cookie domain: {app.config['SESSION_COOKIE_DOMAIN']}")
+logger.info(f"Session cookie secure: {app.config['SESSION_COOKIE_SECURE']}")
 
 # --- Auth0 Client Setup ---
 oauth = OAuth(app)
