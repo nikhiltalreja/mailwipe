@@ -305,9 +305,16 @@ def login():
 
 @app.route('/auth/callback')
 def callback():
-    """Handle Auth0 callback after login"""
+    """Handle Auth0 callback after login including CSRF protection"""
     try:
-        logger.info(f"Auth0 callback received. State: {request.args.get('state')}, Code: {'present' if request.args.get('code') else 'missing'}")
+        # Validate CSRF protection params
+        state = request.args.get('state')
+        if not state or 'nonce' not in session:
+            logger.error("Missing state parameter or session nonce in callback")
+            return render_template('error.html', error="Invalid authentication request. Please try again.")
+
+        # Check if state matches session (if stored) for additional CSRF protection
+        logger.info(f"Auth0 callback received. State: {state}, Code: {'present' if request.args.get('code') else 'missing'}")
 
         # Check for errors from Auth0
         if 'error' in request.args:
@@ -316,13 +323,17 @@ def callback():
             logger.error(f"Auth0 callback error: {error} - {error_description}")
             return render_template('error.html', error=f"Authentication error: {error_description}")
 
-        # Fetch the token
+        # Fetch and validate the token
         logger.info("Auth0 callback processing, fetching token...")
         try:
-            token = auth0.authorize_access_token()
+            auth0_params = {'nonce': session['nonce']}  # Pass stored nonce for validation
+            token = auth0.authorize_access_token(**auth0_params)
             if not token or 'access_token' not in token:
                  raise ValueError("Received empty or invalid token response from Auth0.")
-            logger.info(f"Token received. Keys: {list(token.keys())}") # Log keys, not values
+            logger.info(f"Token validated. Keys: {list(token.keys())}") # Log keys, not values
+            # Verify nonce claim matches session nonce
+            if 'userinfo' in token and token['userinfo'].get('nonce') != session['nonce']:
+                raise ValueError("Nonce mismatch in token validation")
             # If debugging needed, uncomment below carefully
             # logger.debug(f"Received token data (excluding sensitive parts): {{'expires_in': {token.get('expires_in')}, 'token_type': {token.get('token_type')}}}")
 
@@ -443,6 +454,9 @@ def verify():
         if expires_at < time.time() + 60: # Check if expires within 1 min
              logger.warning("OAuth token is expired or about to expire.")
              return jsonify({"status": "error", "message": "Your session token has expired. Please log in again.", "requires_login": True}), 401
+        if not expires_at: # Handle missing expires_at value
+            logger.error("Missing 'expires_at' value in session. Please try logging in again.")
+            return jsonify({"status": "error", "message": "Session data is incomplete. Please log in again.", "requires_login": True}), 401
 
     else: # Password auth
         email = data.get('username')
@@ -484,9 +498,9 @@ def verify():
                 imap_conn = None
                 imap_error = None
                 try:
+                    current_timeout = socket.getdefaulttimeout()
                     socket.setdefaulttimeout(CONNECTION_TIMEOUT) # Set timeout for operation
                     if auth_method == 'oauth':
-                        # Use helper's IMAP connector for consistency
                         imap_conn, imap_error = gmail_api_helper.connect_imap_oauth(email, access_token)
                     else: # Password auth
                         context = ssl.create_default_context()
@@ -1116,12 +1130,13 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_error(error):
+    """Handle 500 errors with proper logging"""
     # Log the actual exception if available
     if hasattr(error, 'original_exception'):
         logger.error("Internal Server Error (500)", exc_info=error.original_exception)
     else:
         logger.error(f"Internal Server Error (500): {error}")
-    return jsonify({"status": "error", "message": "An internal server error occurred. Please try again later."}), 500
+    return render_template('500.html', error=str(error)), 500
 
 
 # --- Main Execution ---

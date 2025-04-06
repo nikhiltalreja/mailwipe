@@ -285,6 +285,8 @@ def delete_emails_gmail_api(service: Any, query: str, task_id: str, progress_dic
     """
     if not service:
         return 0, 0, "Service object is None"
+    if not progress_dict or not isinstance(progress_dict, dict):
+        return 0, 0, "Invalid progress dictionary provided"
 
     total_deleted_count = 0
     estimated_size_deleted = 0
@@ -352,28 +354,33 @@ def delete_emails_gmail_api(service: Any, query: str, task_id: str, progress_dic
             # --- Estimate size before deleting (Optional but good for progress) ---
             batch_size_bytes = 0
             try:
-                size_request = service.users().messages().list(
-                    userId='me',
-                    ids=message_ids,
-                    fields='messages(id,sizeEstimate)' # Request only sizeEstimate
-                )
-                # Note: Above might not work directly, batchGet is better
-                # Alternative: Batch get minimal metadata including sizeEstimate
+                # Get size estimates in a single batch request
                 batch_get_req = service.new_batch_http_request()
+                size_results = []
+                
                 def size_callback(request_id, response, exception):
-                    nonlocal batch_size_bytes
                     if exception is None and response:
-                        batch_size_bytes += response.get('sizeEstimate', 0)
+                        size_results.append(response.get('sizeEstimate', 0))
                     elif exception:
                         logger.warning(f"Error getting size for message in batch: {exception}")
+                        size_results.append(0) # Default to 0 if error
 
                 for msg_id in message_ids:
-                     batch_get_req.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From', 'To', 'Subject', 'Date']), callback=size_callback) # Minimal fetch + callback
+                    batch_get_req.add(
+                        service.users().messages().get(
+                            userId='me',
+                            id=msg_id,
+                            fields='sizeEstimate' # Only fetch size estimate
+                        ),
+                        callback=size_callback
+                    )
+                
                 batch_get_req.execute()
+                batch_size_bytes = sum(size_results)
                 estimated_size_deleted += batch_size_bytes
                 logger.debug(f"Estimated size for batch: {batch_size_bytes} bytes")
             except Exception as size_e:
-                 logger.warning(f"Could not estimate size for batch: {size_e}. Size reporting will be inaccurate.")
+                logger.warning(f"Could not estimate size for batch: {size_e}. Size reporting will be inaccurate.")
             # --- End Size Estimation ---
 
 
@@ -434,7 +441,13 @@ def delete_emails_gmail_api(service: Any, query: str, task_id: str, progress_dic
 
 # --- Keep manual_token_check if needed for debugging ---
 def manual_token_check(token: str) -> dict:
-    """Manual token verification for debugging (decodes payload without validation)"""
+    """
+    DEBUGGING ONLY - Manual token verification (decodes payload without validation)
+    
+    WARNING: This function is for debugging purposes only and should not be used
+    in production code as it does not validate the token signature.
+    """
+    logger.warning("DEBUG FUNCTION CALLED: manual_token_check - This should not be used in production")
     try:
         # Decode JWT payload without validation
         payload_b64 = token.split('.')[1]
